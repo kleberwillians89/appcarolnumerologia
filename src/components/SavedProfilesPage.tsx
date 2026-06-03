@@ -13,7 +13,6 @@ import { getProfiles, deleteProfile, toggleFavorite, clearAllProfiles, updatePro
 import { saveSharedProfile, generateShareUrl, generateQRCodeUrl } from '@/utils/shareProfileUtils';
 import { useAppContext } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
-import { shouldAutoBackup, downloadBackup } from '@/utils/autoBackupService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
@@ -49,16 +48,6 @@ export const SavedProfilesPage: React.FC = () => {
     const loaded = getProfiles();
     setProfiles(loaded);
     setFilteredProfiles(loaded);
-    
-    // Verificar se deve fazer backup automático
-    if (shouldAutoBackup(loaded)) {
-      downloadBackup(loaded);
-      toast({ 
-        title: 'Backup automático criado', 
-        description: `Backup de ${loaded.length} perfis foi salvo automaticamente.`,
-        duration: 5000
-      });
-    }
   };
 
   useEffect(() => {

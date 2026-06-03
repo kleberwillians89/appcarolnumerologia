@@ -1,4 +1,5 @@
 import { SavedProfile } from './profileStorage';
+import { saveBackupToHistory } from './historyStorage';
 
 
 export interface BackupConfig {
@@ -20,48 +21,33 @@ export interface BackupData {
 const BACKUP_CONFIG_KEY = 'numerology_backup_config';
 const LAST_BACKUP_KEY = 'numerology_last_backup';
 
+const DEFAULT_BACKUP_CONFIG: BackupConfig = {
+  enabled: false,
+  intervalDays: 7,
+  maxProfilesBeforeBackup: 10,
+  lastBackupDate: null,
+  lastBackupProfileCount: 0,
+};
+
 export const getBackupConfig = (): BackupConfig => {
-  const stored = localStorage.getItem(BACKUP_CONFIG_KEY);
-  if (stored) {
-    return JSON.parse(stored);
+  try {
+    const stored = localStorage.getItem(BACKUP_CONFIG_KEY);
+    if (stored) {
+      return { ...DEFAULT_BACKUP_CONFIG, ...JSON.parse(stored), enabled: false };
+    }
+  } catch {
+    localStorage.removeItem(BACKUP_CONFIG_KEY);
   }
-  return {
-    enabled: true,
-    intervalDays: 7,
-    maxProfilesBeforeBackup: 10,
-    lastBackupDate: null,
-    lastBackupProfileCount: 0,
-  };
+
+  return DEFAULT_BACKUP_CONFIG;
 };
 
 export const saveBackupConfig = (config: BackupConfig): void => {
-  localStorage.setItem(BACKUP_CONFIG_KEY, JSON.stringify(config));
+  localStorage.setItem(BACKUP_CONFIG_KEY, JSON.stringify({ ...config, enabled: false }));
 };
 
 export const shouldAutoBackup = (profiles: SavedProfile[]): boolean => {
-  const config = getBackupConfig();
-  if (!config.enabled) return false;
-
-  const profileCount = profiles.length;
-  
-  // Check profile count threshold
-  if (profileCount >= config.maxProfilesBeforeBackup && 
-      profileCount > config.lastBackupProfileCount) {
-    return true;
-  }
-
-  // Check date threshold
-  if (config.lastBackupDate) {
-    const lastBackup = new Date(config.lastBackupDate);
-    const now = new Date();
-    const daysDiff = Math.floor((now.getTime() - lastBackup.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysDiff >= config.intervalDays) {
-      return true;
-    }
-  } else {
-    return true; // First backup
-  }
-
+  void profiles;
   return false;
 };
 
@@ -94,8 +80,6 @@ export const downloadBackup = (profiles: SavedProfile[]): void => {
   
   localStorage.setItem(LAST_BACKUP_KEY, JSON.stringify(backup));
   
-  // Save to backup history
-  const { saveBackupToHistory } = require('./historyStorage');
   saveBackupToHistory(profiles);
 };
 

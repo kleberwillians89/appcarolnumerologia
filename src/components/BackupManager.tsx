@@ -7,15 +7,15 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Download, Upload, Settings, Calendar, Users, History } from 'lucide-react';
 import { getBackupConfig, saveBackupConfig, downloadBackup, parseBackupFile, BackupData } from '@/utils/autoBackupService';
-import { Profile } from '@/utils/profileStorage';
+import { SavedProfile } from '@/utils/profileStorage';
 import { BackupHistoryModal } from './BackupHistoryModal';
 import { getBackupHistory, deleteBackupFromHistory, BackupHistoryEntry } from '@/utils/historyStorage';
 import { useToast } from '@/hooks/use-toast';
 
 
 interface BackupManagerProps {
-  profiles: Profile[];
-  onRestore: (profiles: Profile[]) => void;
+  profiles: SavedProfile[];
+  onRestore: (profiles: SavedProfile[]) => void;
 }
 
 export const BackupManager = ({ profiles, onRestore }: BackupManagerProps) => {
