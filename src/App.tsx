@@ -1,4 +1,5 @@
 // src/App.tsx
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,11 +15,30 @@ import { CustomerPortal } from "./components/CustomerPortal";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
+const ROUTE_AUTH_TIMEOUT_MS = 3000;
+
+function useRouteAuthTimeout(loading: boolean) {
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setTimedOut(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setTimedOut(true), ROUTE_AUTH_TIMEOUT_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [loading]);
+
+  return timedOut;
+}
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) {
+  const authTimedOut = useRouteAuthTimeout(loading);
+
+  if (loading && !authTimedOut) {
     return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
   }
   if (!user) {
@@ -31,7 +51,9 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 function RedirectIfAuthenticated({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) {
+  const authTimedOut = useRouteAuthTimeout(loading);
+
+  if (loading && !authTimedOut) {
     return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
   }
   if (user) {

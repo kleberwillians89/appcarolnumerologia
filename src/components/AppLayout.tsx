@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import PersonalYearCalculator from './PersonalYearCalculator';
 import { CompatibilitySection } from './CompatibilitySection';
@@ -38,10 +39,13 @@ const AppLayout: React.FC = () => {
     loading,
     logout,
   } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AppTab>('numerology');
 
   const handleLogout = async () => {
-    await logout();
+    const logoutPromise = logout();
+    navigate('/login', { replace: true });
+    await logoutPromise;
   };
 
   if (loading) {

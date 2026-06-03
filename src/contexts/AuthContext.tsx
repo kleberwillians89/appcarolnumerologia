@@ -1,7 +1,7 @@
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { DEV_MODE } from '@/config/devMode';
-import { hasSupabaseConfig } from '@/config/env';
+import { hasSupabaseConfig, supabaseUrl } from '@/config/env';
 import { supabase } from '@/lib/supabaseClient';
 
 export type AppRole = 'admin' | 'cliente';
@@ -42,6 +42,44 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AUTH_SESSION_TIMEOUT_MS = 3000;
+
+const authLog = (...args: unknown[]) => {
+  console.log('[auth]', ...args);
+};
+
+const authWarn = (...args: unknown[]) => {
+  console.warn('[auth]', ...args);
+};
+
+const getSupabaseProjectRef = () => {
+  try {
+    return new URL(supabaseUrl).hostname.split('.')[0];
+  } catch {
+    return '';
+  }
+};
+
+const clearCorruptedSupabaseAuthStorage = () => {
+  if (typeof window === 'undefined') return;
+
+  const projectRef = getSupabaseProjectRef();
+  const shouldClearKey = (key: string) => {
+    if (!key.startsWith('sb-')) return false;
+    if (!projectRef) return key.includes('auth-token');
+    return key.startsWith(`sb-${projectRef}-`) || (key.includes(projectRef) && key.includes('auth'));
+  };
+
+  try {
+    [localStorage, sessionStorage].forEach((storage) => {
+      Object.keys(storage).forEach((key) => {
+        if (shouldClearKey(key)) storage.removeItem(key);
+      });
+    });
+  } catch (error) {
+    authWarn('erro ao limpar sessão auth corrompida', error);
+  }
+};
 
 const createFallbackProfile = (user: User | LegacyUser, role: AppRole = 'admin'): AppProfile => ({
   id: user.id || 'dev-profile',
@@ -85,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
 
     if (error) {
+      authWarn('profile load error', error);
       setAuthError(error.message);
       const fallback = createFallbackProfile(authUser, 'cliente');
       setProfile(fallback);
@@ -110,6 +149,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return mapped;
   }, []);
 
+  const loadProfileInBackground = useCallback((authUser: User) => {
+    if (!supabase || !hasSupabaseConfig) return;
+
+    setProfile((current) => current || createFallbackProfile(authUser, 'cliente'));
+    loadProfileForUser(authUser).catch((error) => {
+      authWarn('profile load error', error);
+      setAuthError(error instanceof Error ? error.message : 'Não foi possível carregar o perfil.');
+      setProfile(createFallbackProfile(authUser, 'cliente'));
+    });
+  }, [loadProfileForUser]);
+
   const refreshProfile = useCallback(async () => {
     if (!supabase || !hasSupabaseConfig) {
       if (DEV_MODE && user) {
@@ -134,13 +184,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let initFinished = false;
+
+    const forceFinishLoading = () => {
+      if (!mounted || initFinished) return;
+      initFinished = true;
+      authWarn('auth timeout forced');
+      clearCorruptedSupabaseAuthStorage();
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+    };
+
+    const timeoutId = window.setTimeout(forceFinishLoading, AUTH_SESSION_TIMEOUT_MS);
+
+    const finishInitialLoad = () => {
+      if (!mounted || initFinished) return;
+      initFinished = true;
+      window.clearTimeout(timeoutId);
+      setLoading(false);
+    };
 
     const loadSession = async () => {
+      authLog('auth init start');
       setLoading(true);
       setAuthError(null);
 
       try {
         if (!supabase || !hasSupabaseConfig) {
+          authLog('getSession no session', 'supabase not configured');
           if (mounted) {
             setUser(null);
             setProfile(null);
@@ -149,99 +221,126 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const { data, error } = await supabase.auth.getSession();
-        if (!mounted) return;
+        if (!mounted || initFinished) return;
 
         const authUser = data.session?.user || null;
 
-        if (error || !authUser) {
-          if (error) setAuthError(error.message);
+        if (error) {
+          authWarn('getSession error', error);
+          setAuthError(error.message);
+          clearCorruptedSupabaseAuthStorage();
           setUser(null);
           setProfile(null);
           return;
         }
 
-        setUser(authUser);
-        try {
-          await loadProfileForUser(authUser);
-        } catch (profileError) {
-          if (!mounted) return;
-          setAuthError(profileError instanceof Error ? profileError.message : 'Não foi possível carregar o perfil.');
-          setProfile(createFallbackProfile(authUser, 'cliente'));
+        if (!authUser) {
+          authLog('getSession no session');
+          setUser(null);
+          setProfile(null);
+          return;
         }
+
+        authLog('getSession success');
+        setUser(authUser);
+        setProfile(createFallbackProfile(authUser, 'cliente'));
+        loadProfileInBackground(authUser);
       } catch (error) {
-        if (!mounted) return;
+        if (!mounted || initFinished) return;
+        authWarn('getSession error', error);
         setAuthError(error instanceof Error ? error.message : 'Não foi possível carregar a sessão.');
+        clearCorruptedSupabaseAuthStorage();
         setUser(null);
         setProfile(null);
       } finally {
-        if (mounted) setLoading(false);
+        finishInitialLoad();
       }
     };
 
     loadSession();
 
-    const { data: listener } = supabase?.auth.onAuthStateChange(async (_event, session) => {
+    const { data: listener } = supabase?.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
-      setLoading(true);
+      authLog('auth state changed', _event);
 
       try {
-        setUser(session?.user || null);
-        if (session?.user) {
-          await loadProfileForUser(session.user);
+        const authUser = session?.user || null;
+        setUser(authUser);
+        setLoading(false);
+
+        if (authUser) {
+          setProfile(createFallbackProfile(authUser, 'cliente'));
+          loadProfileInBackground(authUser);
         } else {
           setProfile(null);
         }
       } catch (error) {
         if (!mounted) return;
+        authWarn('auth state changed error', error);
         setAuthError(error instanceof Error ? error.message : 'Não foi possível atualizar a sessão.');
         setUser(null);
         setProfile(null);
-      } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     }) || { data: null };
 
     return () => {
       mounted = false;
+      window.clearTimeout(timeoutId);
       listener?.subscription?.unsubscribe();
     };
-  }, []);
+  }, [loadProfileInBackground]);
 
   const signIn = async (email: string, password: string) => {
     setAuthError(null);
+    setLoading(false);
 
     if (!supabase || !hasSupabaseConfig) {
       if (DEV_MODE) {
         const fallbackUser = { id: 'dev-user', email, name: 'Carol Graber' };
         setUser(fallbackUser);
         setProfile(createFallbackProfile(fallbackUser, 'admin'));
+        setLoading(false);
         return { success: true };
       }
 
       const error = 'Supabase não configurado. Crie o arquivo .env.local com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.';
       setAuthError(error);
+      setLoading(false);
       return { success: false, error };
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setAuthError(error.message);
-      return { success: false, error: error.message };
-    }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setAuthError(error.message);
+        setLoading(false);
+        return { success: false, error: error.message };
+      }
 
-    if (data.user) {
-      setUser(data.user);
-      await loadProfileForUser(data.user);
+      if (data.user) {
+        setUser(data.user);
+        setProfile(createFallbackProfile(data.user, 'cliente'));
+        setLoading(false);
+        loadProfileInBackground(data.user);
+      }
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Não foi possível autenticar.';
+      setAuthError(message);
+      setLoading(false);
+      return { success: false, error: message };
     }
-    return { success: true };
   };
 
   const signUp = async (email: string, password: string, metadata: Record<string, any> = {}) => {
     setAuthError(null);
+    setLoading(false);
 
     if (!supabase || !hasSupabaseConfig) {
       const error = 'Supabase não configurado. Configure o .env.local antes de criar acessos.';
       setAuthError(error);
+      setLoading(false);
       return { success: false, error };
     }
 
@@ -255,23 +354,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (error) {
       setAuthError(error.message);
+      setLoading(false);
       return { success: false, error: error.message };
     }
 
     if (data.user) {
-      await supabase.from('profiles').upsert({
+      supabase.from('profiles').upsert({
         user_id: data.user.id,
         email,
         full_name: metadata.full_name || metadata.name || email,
         name: metadata.name || metadata.full_name || email,
         role: metadata.role === 'admin' ? 'admin' : 'cliente',
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
+      }, { onConflict: 'user_id' }).then(({ error: profileError }) => {
+        if (profileError) authWarn('profile load error', profileError);
+      });
 
       setUser(data.user);
-      await loadProfileForUser(data.user);
+      setProfile(createFallbackProfile(data.user, metadata.role === 'admin' ? 'admin' : 'cliente'));
+      setLoading(false);
+      loadProfileInBackground(data.user);
     } else {
       setAuthError('Verifique seu e-mail para confirmar o acesso.');
+      setLoading(false);
     }
 
     return { success: true };
@@ -279,6 +384,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     setAuthError(null);
+    setUser(null);
+    setProfile(null);
+    setLoading(false);
+    clearCorruptedSupabaseAuthStorage();
+    authLog('logout local complete');
 
     try {
       if (supabase && hasSupabaseConfig) {
