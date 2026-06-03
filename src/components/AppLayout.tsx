@@ -40,6 +40,10 @@ const AppLayout: React.FC = () => {
   } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>('numerology');
 
+  const handleLogout = async () => {
+    await logout();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">
@@ -65,11 +69,7 @@ const AppLayout: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 sm:gap-4">
                 <span className="text-slate-300 text-xs sm:text-sm hidden sm:inline">{profile?.full_name || profile?.name || user?.email}</span>
-                {user ? (
-                  <button onClick={logout} className="px-2 sm:px-4 py-1.5 sm:py-2 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-semibold rounded-lg transition-colors text-xs sm:text-sm">Sair</button>
-                ) : (
-                  <a href="/login" className="px-2 sm:px-4 py-1.5 sm:py-2 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-semibold rounded-lg transition-colors text-xs sm:text-sm">Entrar</a>
-                )}
+                <button onClick={handleLogout} className="px-2 sm:px-4 py-1.5 sm:py-2 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-semibold rounded-lg transition-colors text-xs sm:text-sm">Sair</button>
               </div>
             </div>
             

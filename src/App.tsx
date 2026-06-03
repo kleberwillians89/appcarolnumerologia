@@ -61,8 +61,15 @@ const App = () => (
                 }
               />
 
-              {/* Fluxo principal antigo */}
-              <Route path="/" element={<Index />} />
+              {/* App principal protegido */}
+              <Route
+                path="/"
+                element={
+                  <RequireAuth>
+                    <Index />
+                  </RequireAuth>
+                }
+              />
 
               {/* Área do cliente preservada, sem bloquear o fluxo principal */}
               <Route
@@ -77,8 +84,15 @@ const App = () => (
               {/* Shared Profile View (Public) */}
               <Route path="/shared/:shareId" element={<SharedProfileView />} />
 
-              {/* Demais rotas */}
-              <Route path="*" element={<NotFound />} />
+              {/* Demais rotas protegidas */}
+              <Route
+                path="*"
+                element={
+                  <RequireAuth>
+                    <NotFound />
+                  </RequireAuth>
+                }
+              />
 
             </Routes>
           </BrowserRouter>
