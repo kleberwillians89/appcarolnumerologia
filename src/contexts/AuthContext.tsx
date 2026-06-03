@@ -139,41 +139,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setAuthError(null);
 
-      if (!supabase || !hasSupabaseConfig) {
-        if (mounted) {
+      try {
+        if (!supabase || !hasSupabaseConfig) {
+          if (mounted) {
+            setUser(null);
+            setProfile(null);
+          }
+          return;
+        }
+
+        const { data, error } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        const authUser = data.session?.user || null;
+
+        if (error || !authUser) {
+          if (error) setAuthError(error.message);
           setUser(null);
           setProfile(null);
-          setLoading(false);
+          return;
         }
-        return;
-      }
 
-      const { data, error } = await supabase.auth.getUser();
-      if (!mounted) return;
-
-      if (error || !data.user) {
+        setUser(authUser);
+        try {
+          await loadProfileForUser(authUser);
+        } catch (profileError) {
+          if (!mounted) return;
+          setAuthError(profileError instanceof Error ? profileError.message : 'Não foi possível carregar o perfil.');
+          setProfile(createFallbackProfile(authUser, 'cliente'));
+        }
+      } catch (error) {
+        if (!mounted) return;
+        setAuthError(error instanceof Error ? error.message : 'Não foi possível carregar a sessão.');
         setUser(null);
         setProfile(null);
-        setLoading(false);
-        return;
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      setUser(data.user);
-      await loadProfileForUser(data.user);
-      if (mounted) setLoading(false);
     };
 
     loadSession();
 
     const { data: listener } = supabase?.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
-      setUser(session?.user || null);
-      if (session?.user) {
-        await loadProfileForUser(session.user);
-      } else {
+      setLoading(true);
+
+      try {
+        setUser(session?.user || null);
+        if (session?.user) {
+          await loadProfileForUser(session.user);
+        } else {
+          setProfile(null);
+        }
+      } catch (error) {
+        if (!mounted) return;
+        setAuthError(error instanceof Error ? error.message : 'Não foi possível atualizar a sessão.');
+        setUser(null);
         setProfile(null);
+      } finally {
+        if (mounted) setLoading(false);
       }
-      setLoading(false);
     }) || { data: null };
 
     return () => {
@@ -253,11 +278,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    if (supabase && hasSupabaseConfig) {
-      await supabase.auth.signOut();
+    setAuthError(null);
+
+    try {
+      if (supabase && hasSupabaseConfig) {
+        const { error } = await supabase.auth.signOut();
+        if (error) setAuthError(error.message);
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Não foi possível encerrar a sessão.');
+    } finally {
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
     }
-    setUser(null);
-    setProfile(null);
   };
 
   const login = async (email: string, password: string) => {
