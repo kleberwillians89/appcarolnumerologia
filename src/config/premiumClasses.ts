@@ -1,0 +1,16 @@
+export const premiumClasses = {
+  page: 'min-h-screen bg-[#050B1A] text-[#F8F5EF]',
+  header: 'border-b border-[#C9A96E]/25 bg-[#071D2B]/95',
+  card: 'bg-[#0B1426]/95 border-[#C9A96E]/35 text-[#F8F5EF] shadow-xl shadow-black/20',
+  cardAlt: 'bg-[#0B2535]/90 border-[#C9A96E]/25 text-[#F8F5EF]',
+  title: 'text-white',
+  text: 'text-[#F8F5EF]',
+  muted: 'text-[#F8F5EF]/70',
+  label: 'text-[#F8F5EF]/85',
+  input: 'bg-[#070D1D] border-[#F8F5EF]/20 text-[#F8F5EF] placeholder:text-[#F8F5EF]/40 focus-visible:ring-[#C9A96E]/60 focus-visible:border-[#C9A96E]/60',
+  select: 'w-full rounded-md border border-[#F8F5EF]/20 bg-[#070D1D] px-3 py-2 text-sm text-[#F8F5EF] outline-none focus:border-[#C9A96E]/60 focus:ring-2 focus:ring-[#C9A96E]/30',
+  textarea: 'bg-[#070D1D] border-[#F8F5EF]/20 text-[#F8F5EF] placeholder:text-[#F8F5EF]/40 focus-visible:ring-[#C9A96E]/60 focus-visible:border-[#C9A96E]/60',
+  primaryButton: 'bg-[#C9A96E] hover:bg-[#D8BC82] text-[#050B1A] font-semibold',
+  secondaryButton: 'border-[#F8F5EF]/25 bg-transparent text-[#F8F5EF] hover:bg-[#F8F5EF]/10 hover:text-white',
+  badge: 'border-[#C9A96E]/35 bg-[#C9A96E]/15 text-[#F8F5EF]',
+};

@@ -1,0 +1,28 @@
+{
+  "images": [
+    {
+      "name": "capa",
+      "url": "https://d64gsuwffb70l.cloudfront.net/6877ab8bbdf6db9dc0251519_1760768485419_3523f9cb.png",
+      "description": "Cover page background (pg1_capa)",
+      "enabled": true
+    },
+    {
+      "name": "background",
+      "url": "https://d64gsuwffb70l.cloudfront.net/6877ab8bbdf6db9dc0251519_1760769735566_1420b27e.png",
+      "description": "General PDF background (bg_2_Pdf)",
+      "enabled": true
+    },
+    {
+      "name": "jornada",
+      "url": "https://d64gsuwffb70l.cloudfront.net/6877ab8bbdf6db9dc0251519_1760769615022_b7884e9d.png",
+      "description": "Life journey page background (pg5_jornada)",
+      "enabled": true
+    }
+  ],
+  "settings": {
+    "retryAttempts": 3,
+    "retryDelay": 2000,
+    "webpQuality": 90,
+    "concurrentDownloads": 2
+  }
+}
