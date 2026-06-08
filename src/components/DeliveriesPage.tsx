@@ -18,7 +18,7 @@ const statusLabel: Record<DeliveryStatus, string> = {
   DADOS_RECEBIDOS: 'Dados recebidos',
   AGUARDANDO_DADOS: 'Aguardando dados',
   PRONTO_PARA_GERAR_PDF: 'Pronto para gerar PDF',
-  AGUARDANDO_ANALISE: 'Análise manual',
+  AGUARDANDO_ANALISE: 'Pendente',
   PDF_GERADO: 'PDF gerado',
   PDF_ENVIADO: 'PDF enviado',
 };
@@ -79,7 +79,6 @@ const statusOptions: DeliveryStatus[] = [
   'DADOS_RECEBIDOS',
   'AGUARDANDO_DADOS',
   'PRONTO_PARA_GERAR_PDF',
-  'AGUARDANDO_ANALISE',
   'PDF_GERADO',
   'PDF_ENVIADO',
 ];

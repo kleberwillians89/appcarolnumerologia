@@ -189,44 +189,53 @@ const PersonalYearCalculator: React.FC = () => {
         }
 
         if (createDelivery) {
-          await deliveryService.createDelivery({
-            nome: clientName.trim(),
-            telefone: clientPhone,
-            telefoneNormalizado: normalizeBrazilianPhone(clientPhone),
-            email: clientEmail.trim() || '',
-            produto: 'ano_pessoal',
-            status: 'PDF_GERADO',
-            dataNascimento: clientBirthDate,
-            linkPdf: result.linkPdf || null,
-            pdfDataUrl: result.pdfDataUrl || null,
-            fileName: result.fileName || null,
-            origem: 'plataforma',
-            observacoesCliente: '',
-            observacoesCarol: 'Entrega criada a partir do Ano Pessoal.',
-            dadosNumerologicos: {
-              personalYear: {
-                year: personalYear,
-                birthMonth,
-                day,
-                month,
-                referenceYear: currentYear,
-              },
-            },
-            dadosCliente: {
+          try {
+            await deliveryService.createDelivery({
               nome: clientName.trim(),
               telefone: clientPhone,
               telefoneNormalizado: normalizeBrazilianPhone(clientPhone),
               email: clientEmail.trim() || '',
-              dataNascimento: clientBirthDate,
               produto: 'ano_pessoal',
+              status: 'PDF_GERADO',
+              dataNascimento: clientBirthDate,
+              linkPdf: result.linkPdf || null,
+              pdfDataUrl: result.pdfDataUrl || null,
+              fileName: result.fileName || null,
               origem: 'plataforma',
-            },
-          });
+              observacoesCliente: '',
+              observacoesCarol: 'Entrega criada a partir do Ano Pessoal.',
+              dadosNumerologicos: {
+                personalYear: {
+                  year: personalYear,
+                  birthMonth,
+                  day,
+                  month,
+                  referenceYear: currentYear,
+                },
+              },
+              dadosCliente: {
+                nome: clientName.trim(),
+                telefone: clientPhone,
+                telefoneNormalizado: normalizeBrazilianPhone(clientPhone),
+                email: clientEmail.trim() || '',
+                dataNascimento: clientBirthDate,
+                produto: 'ano_pessoal',
+                origem: 'plataforma',
+              },
+            });
 
-          toast({
-            title: 'Entrega criada',
-            description: `${clientName.trim()} foi enviado para a aba Entregas.`,
-          });
+            toast({
+              title: 'Entrega criada',
+              description: `${clientName.trim()} foi enviado para a aba Entregas.`,
+            });
+          } catch (error) {
+            console.warn('[PersonalYearCalculator] PDF gerado, mas a entrega não foi registrada', error);
+            toast({
+              title: 'PDF gerado',
+              description: 'O PDF foi baixado, mas a entrega não pôde ser registrada agora.',
+              variant: 'destructive',
+            });
+          }
         } else {
           toast({
             title: 'PDF gerado',

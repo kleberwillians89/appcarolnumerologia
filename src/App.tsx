@@ -10,7 +10,6 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./components/LoginPage";
 import { SharedProfileView } from "./components/SharedProfileView";
-import { CustomerPortal } from "./components/CustomerPortal";
 
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
@@ -93,15 +92,8 @@ const App = () => (
                 }
               />
 
-              {/* Área do cliente preservada, sem bloquear o fluxo principal */}
-              <Route
-                path="/portal"
-                element={
-                  <RequireAuth>
-                    <CustomerPortal />
-                  </RequireAuth>
-                }
-              />
+              {/* Portal de cliente desativado temporariamente: o app abre no fluxo operacional. */}
+              <Route path="/portal" element={<Navigate to="/" replace />} />
 
               {/* Shared Profile View (Public) */}
               <Route path="/shared/:shareId" element={<SharedProfileView />} />

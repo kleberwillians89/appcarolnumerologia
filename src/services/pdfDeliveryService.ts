@@ -56,6 +56,20 @@ const getBirthParts = (birthDate: string) => {
 
 const createLocalPdfLink = (fileName: string) => `local://${fileName}`;
 
+const buildPersonalYearForBirthDate = (input: PdfGenerationInput) => {
+  const birthParts = getBirthParts(input.cliente.dataNascimento);
+  const referenceYear = input.dadosNumerologicos.personalYear?.referenceYear || new Date().getFullYear();
+  const year = input.dadosNumerologicos.personalYear?.year || calculatePersonalYear(birthParts.day, birthParts.month, referenceYear);
+
+  return {
+    year,
+    birthMonth: input.dadosNumerologicos.personalYear?.birthMonth || birthParts.month,
+    day: input.dadosNumerologicos.personalYear?.day || String(birthParts.day),
+    month: input.dadosNumerologicos.personalYear?.month || String(birthParts.month),
+    referenceYear,
+  };
+};
+
 export const generatePdfForProduct = async (input: PdfGenerationInput): Promise<PdfGenerationResult> => {
   const validationError = validateClient(input);
   if (validationError) {
@@ -65,6 +79,7 @@ export const generatePdfForProduct = async (input: PdfGenerationInput): Promise<
   try {
     if (input.produto === 'mapa') {
       const numerologyResults = input.dadosNumerologicos.results || calculateAllNumbers(input.cliente.nome, input.cliente.dataNascimento);
+      const personalYear = buildPersonalYearForBirthDate(input);
 
       const result = await generateMapaDaAlmaPDF(
         {
@@ -73,14 +88,7 @@ export const generatePdfForProduct = async (input: PdfGenerationInput): Promise<
             name: input.cliente.nome,
             birthDate: input.cliente.dataNascimento,
           },
-          personalYear: input.dadosNumerologicos.personalYear?.year
-            ? {
-                year: input.dadosNumerologicos.personalYear.year,
-                birthMonth: input.dadosNumerologicos.personalYear.birthMonth || getBirthParts(input.cliente.dataNascimento).month,
-                day: input.dadosNumerologicos.personalYear.day || String(getBirthParts(input.cliente.dataNascimento).day),
-                month: input.dadosNumerologicos.personalYear.month || String(getBirthParts(input.cliente.dataNascimento).month),
-              }
-            : undefined,
+          personalYear,
           compatibility: input.dadosNumerologicos.compatibility,
         },
         true
@@ -101,12 +109,11 @@ export const generatePdfForProduct = async (input: PdfGenerationInput): Promise<
 
     if (input.produto === 'ano_pessoal') {
       const { day, month } = getBirthParts(input.cliente.dataNascimento);
-      const referenceYear = input.dadosNumerologicos.personalYear?.referenceYear || new Date().getFullYear();
-      const py = input.dadosNumerologicos.personalYear?.year || calculatePersonalYear(day, month, referenceYear);
+      const personalYear = buildPersonalYearForBirthDate(input);
 
       const result = await generateCompletePDF(
-        py,
-        input.dadosNumerologicos.personalYear?.birthMonth || month,
+        personalYear.year,
+        personalYear.birthMonth || month,
         String(day),
         String(month),
         {

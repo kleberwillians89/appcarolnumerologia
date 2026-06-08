@@ -221,38 +221,47 @@ export const NumerologySection = () => {
       }
 
       if (createDelivery) {
-        await deliveryService.createDelivery({
-          nome: userData.name,
-          telefone: userData.phone || '',
-          telefoneNormalizado: normalizeBrazilianPhone(userData.phone || ''),
-          email: userData.email || '',
-          produto: 'mapa',
-          status: 'PDF_GERADO',
-          dataNascimento: userData.birthDate,
-          linkPdf: pdfResult.linkPdf || null,
-          pdfDataUrl: pdfResult.pdfDataUrl || null,
-          fileName: pdfResult.fileName || null,
-          origem: 'plataforma',
-          observacoesCliente: '',
-          observacoesCarol: 'Entrega criada a partir do Mapa da Alma.',
-          dadosNumerologicos: {
-            results,
-          },
-          dadosCliente: {
+        try {
+          await deliveryService.createDelivery({
             nome: userData.name,
             telefone: userData.phone || '',
             telefoneNormalizado: normalizeBrazilianPhone(userData.phone || ''),
             email: userData.email || '',
-            dataNascimento: userData.birthDate,
             produto: 'mapa',
+            status: 'PDF_GERADO',
+            dataNascimento: userData.birthDate,
+            linkPdf: pdfResult.linkPdf || null,
+            pdfDataUrl: pdfResult.pdfDataUrl || null,
+            fileName: pdfResult.fileName || null,
             origem: 'plataforma',
-          },
-        });
+            observacoesCliente: '',
+            observacoesCarol: 'Entrega criada a partir do Mapa da Alma.',
+            dadosNumerologicos: {
+              results,
+            },
+            dadosCliente: {
+              nome: userData.name,
+              telefone: userData.phone || '',
+              telefoneNormalizado: normalizeBrazilianPhone(userData.phone || ''),
+              email: userData.email || '',
+              dataNascimento: userData.birthDate,
+              produto: 'mapa',
+              origem: 'plataforma',
+            },
+          });
 
-        toast({
-          title: 'Entrega criada',
-          description: `${userData.name} foi enviado para a aba Entregas.`,
-        });
+          toast({
+            title: 'Entrega criada',
+            description: `${userData.name} foi enviado para a aba Entregas.`,
+          });
+        } catch (error) {
+          console.warn('[NumerologySection] PDF gerado, mas a entrega não foi registrada', error);
+          toast({
+            title: 'PDF gerado',
+            description: 'O PDF foi baixado, mas a entrega não pôde ser registrada agora.',
+            variant: 'destructive',
+          });
+        }
       } else {
         toast({
           title: 'PDF gerado',
