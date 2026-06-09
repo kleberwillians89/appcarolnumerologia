@@ -122,6 +122,11 @@ export const generateProfilePDF = async (profile: SavedProfile) => {
     throw new Error('Este perfil nao tem nome, cliente ou data de nascimento suficientes para gerar PDF.');
   }
 
+  const rows = collectResultRows(profile);
+  if (rows.length === 0) {
+    throw new Error('Este perfil ainda nao tem resultado calculado salvo para gerar PDF.');
+  }
+
   const pdf = new jsPDF('p', 'pt', 'a4');
   addPageChrome(pdf);
 
@@ -141,14 +146,9 @@ export const generateProfilePDF = async (profile: SavedProfile) => {
   y = ensureSpace(pdf, y + 22, 80);
   y = addText(pdf, 'Resultados', MARGIN, y + 20, { size: 20, color: INK, bold: true }) + 8;
 
-  const rows = collectResultRows(profile);
-  if (rows.length === 0) {
-    y = addText(pdf, 'Nenhum resultado numerologico foi salvo neste perfil.', MARGIN, y, { color: MUTED });
-  } else {
-    rows.forEach(([label, value]) => {
-      y = addKeyValue(pdf, label, value, y);
-    });
-  }
+  rows.forEach(([label, value]) => {
+    y = addKeyValue(pdf, label, value, y);
+  });
 
   if (profile.notes) {
     y = ensureSpace(pdf, y + 18, 96);
@@ -162,6 +162,15 @@ export const generateProfilePDF = async (profile: SavedProfile) => {
   }
 
   const fileName = `perfil-${sanitizeFileName(profile.profileName)}.pdf`;
-  pdf.save(fileName);
-  return { fileName };
+  const dataUrl = pdf.output('datauristring');
+  return { fileName, dataUrl };
+};
+
+export const downloadProfilePDF = (dataUrl: string, fileName: string) => {
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };

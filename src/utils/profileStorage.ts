@@ -1,3 +1,5 @@
+export type ProfilePdfStatus = 'PENDENTE' | 'EM_ANALISE' | 'PDF_GERADO' | 'ENVIADO' | 'ERRO';
+
 export interface SavedProfile {
   id: string;
   profileName: string;
@@ -13,6 +15,12 @@ export interface SavedProfile {
   notes?: string;
   favorite?: boolean;
   tags?: string[];
+  pdfStatus?: ProfilePdfStatus;
+  pdfDataUrl?: string | null;
+  pdfFileName?: string | null;
+  pdfGeneratedAt?: string | null;
+  pdfSentAt?: string | null;
+  pdfError?: string | null;
 }
 
 const PROFILES_KEY = 'saved_numerology_profiles';

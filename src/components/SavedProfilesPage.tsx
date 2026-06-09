@@ -9,12 +9,12 @@ import { EditProfileModal } from './EditProfileModal';
 import { ShareProfileModal } from './ShareProfileModal';
 import { BackupManager } from './BackupManager';
 import { Badge } from '@/components/ui/badge';
-import { getProfiles, deleteProfile, toggleFavorite, clearAllProfiles, updateProfile, SavedProfile, saveProfile, getAvailableTags } from '@/utils/profileStorage';
+import { getProfiles, deleteProfile, toggleFavorite, clearAllProfiles, updateProfile, SavedProfile, saveProfile, getAvailableTags, ProfilePdfStatus } from '@/utils/profileStorage';
 import { saveSharedProfile, generateShareUrl, generateQRCodeUrl } from '@/utils/shareProfileUtils';
 import { useAppContext } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { generateProfilePDF } from '@/utils/profilePdfGenerator';
+import { downloadProfilePDF, generateProfilePDF } from '@/utils/profilePdfGenerator';
 
 
 
@@ -186,11 +186,24 @@ export const SavedProfilesPage: React.FC = () => {
     setGeneratingPdfId(profile.id);
     try {
       const result = await generateProfilePDF(profile);
+      updateProfile(profile.id, {
+        pdfStatus: 'PDF_GERADO',
+        pdfDataUrl: result.dataUrl,
+        pdfFileName: result.fileName,
+        pdfGeneratedAt: new Date().toISOString(),
+        pdfError: null,
+      });
+      loadProfiles();
       toast({
         title: 'PDF gerado',
-        description: `${result.fileName} foi baixado.`,
+        description: `${result.fileName} ficou disponível para download.`,
       });
     } catch (error) {
+      updateProfile(profile.id, {
+        pdfStatus: 'ERRO',
+        pdfError: error instanceof Error ? error.message : 'Erro inesperado ao gerar PDF.',
+      });
+      loadProfiles();
       toast({
         title: 'Não foi possível gerar o PDF',
         description: error instanceof Error ? error.message : 'Verifique os dados do perfil e tente novamente.',
@@ -199,6 +212,58 @@ export const SavedProfilesPage: React.FC = () => {
     } finally {
       setGeneratingPdfId(null);
     }
+  };
+
+  const handleDownloadProfilePdf = (profile: SavedProfile) => {
+    if (!profile.pdfDataUrl || !profile.pdfFileName) {
+      toast({
+        title: 'PDF indisponível',
+        description: 'Gere o PDF deste perfil antes de baixar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    downloadProfilePDF(profile.pdfDataUrl, profile.pdfFileName);
+  };
+
+  const handleProfileStatusChange = async (profile: SavedProfile, status: ProfilePdfStatus) => {
+    if (status === 'PDF_GERADO' && !profile.pdfDataUrl) {
+      await handleGenerateProfilePdf(profile);
+      return;
+    }
+
+    if (status === 'ENVIADO' && !profile.pdfDataUrl) {
+      toast({
+        title: 'PDF necessário',
+        description: 'Gere o PDF antes de marcar como enviado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const statusUpdates: Partial<SavedProfile> = {
+      pdfStatus: status,
+      pdfError: status === 'ERRO' ? 'Status marcado manualmente como erro.' : null,
+    };
+
+    if (status === 'ENVIADO') {
+      statusUpdates.pdfSentAt = new Date().toISOString();
+    }
+
+    if (status === 'PENDENTE' || status === 'EM_ANALISE' || status === 'PDF_GERADO') {
+      statusUpdates.pdfSentAt = null;
+    }
+
+    updateProfile(profile.id, {
+      ...statusUpdates,
+    });
+    loadProfiles();
+
+    toast({
+      title: 'Status atualizado',
+      description: `${profile.profileName} agora está como ${status}.`,
+    });
   };
 
   const availableTags = getAvailableTags();
@@ -307,6 +372,8 @@ export const SavedProfilesPage: React.FC = () => {
                   onEdit={handleEditProfile}
                   onShare={handleShareProfile}
                   onGeneratePdf={handleGenerateProfilePdf}
+                  onDownloadPdf={handleDownloadProfilePdf}
+                  onStatusChange={handleProfileStatusChange}
                   isGeneratingPdf={generatingPdfId === profile.id}
                 />
 
