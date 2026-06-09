@@ -63,25 +63,63 @@ export const pdfStorageService = {
     fileName: string;
     clientName: string;
   }) {
+    const safeFileName = fileName.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase();
+    const path = `mapas/${slugify(clientName)}-${Date.now()}-${safeFileName}`;
+
     if (!supabase || !hasSupabaseConfig) {
-      return { success: false, error: 'Supabase Storage não configurado.', publicUrl: null, path: null };
+      console.error('[PDF Storage] Upload failed', {
+        bucket: PROFILE_BUCKET,
+        path,
+        error: 'Supabase Storage não configurado.',
+        hasPdfBlob: false,
+        hasPdfFile: Boolean(dataUrl),
+        hasSupabaseClient: Boolean(supabase),
+      });
+      return { success: false, error: 'Supabase Storage não configurado.', publicUrl: null, path };
     }
 
     const fileBlob = dataUrl ? await dataUrlToBlob(dataUrl) : null;
     if (!fileBlob) {
-      return { success: false, error: 'PDF não disponível para upload.', publicUrl: null, path: null };
+      console.error('[PDF Storage] Upload failed', {
+        bucket: PROFILE_BUCKET,
+        path,
+        error: 'PDF não disponível para upload.',
+        hasPdfBlob: Boolean(fileBlob),
+        hasPdfFile: Boolean(dataUrl),
+        hasSupabaseClient: Boolean(supabase),
+      });
+      return { success: false, error: 'PDF não disponível para upload.', publicUrl: null, path };
     }
 
-    const safeFileName = fileName.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase();
-    const path = `mapas/${slugify(clientName)}-${Date.now()}-${safeFileName}`;
     const { error } = await supabase.storage.from(PROFILE_BUCKET).upload(path, fileBlob, {
       contentType: 'application/pdf',
       upsert: true,
     });
 
-    if (error) return { success: false, error: error.message, publicUrl: null, path: null };
+    if (error) {
+      console.error('[PDF Storage] Upload failed', {
+        bucket: PROFILE_BUCKET,
+        path,
+        error,
+        hasPdfBlob: Boolean(fileBlob),
+        pdfBlobSize: fileBlob.size,
+        pdfBlobType: fileBlob.type,
+        hasPdfFile: Boolean(dataUrl),
+        hasSupabaseClient: Boolean(supabase),
+      });
+      return { success: false, error: error.message, publicUrl: null, path };
+    }
 
     const { data } = supabase.storage.from(PROFILE_BUCKET).getPublicUrl(path);
+    console.info('[PDF Storage] Upload success', {
+      bucket: PROFILE_BUCKET,
+      path,
+      hasPdfBlob: Boolean(fileBlob),
+      pdfBlobSize: fileBlob.size,
+      pdfBlobType: fileBlob.type,
+      hasSupabaseClient: Boolean(supabase),
+      publicUrl: data.publicUrl,
+    });
     return { success: true, path, publicUrl: data.publicUrl };
   },
 

@@ -7,17 +7,17 @@ import { NumerologySection } from './NumerologySection';
 import { SavedProfilesPage } from './SavedProfilesPage';
 import QuarterCycleTestPanel from './QuarterCycleTestPanel';
 import { DEV_MODE } from '@/config/devMode';
-import { DeliveriesPage } from './DeliveriesPage';
 import { SettingsPage } from './SettingsPage';
+import { AcquisitionPage } from './AcquisitionPage';
 
 
-type AppTab = 'numerology' | 'personalYear' | 'profiles' | 'deliveries' | 'settings' | 'compatibility' | 'tests';
+type AppTab = 'numerology' | 'personalYear' | 'profiles' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
 
 const productionTabs: Array<{ id: AppTab; label: string }> = [
   { id: 'numerology', label: 'Mapa da Alma' },
   { id: 'personalYear', label: 'Ano Pessoal' },
   { id: 'profiles', label: 'Perfis' },
-  { id: 'deliveries', label: 'Entregas' },
+  { id: 'acquisition', label: 'Aquisição' },
   { id: 'settings', label: 'Configurações' },
 ];
 
@@ -105,8 +105,8 @@ const AppLayout: React.FC = () => {
             <SettingsPage />
           ) : activeTab === 'profiles' ? (
             <SavedProfilesPage />
-          ) : activeTab === 'deliveries' ? (
-            <DeliveriesPage />
+          ) : activeTab === 'acquisition' ? (
+            <AcquisitionPage />
           ) : activeTab === 'compatibility' ? (
             <CompatibilitySection />
           ) : activeTab === 'personalYear' ? (

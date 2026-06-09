@@ -89,7 +89,7 @@ const downloadPdfDataUrl = (dataUrl: string, fileName: string) => {
 
 const getPublicPdfLabel = (profile: SavedProfile) => {
   if (profile.pdfPublicUrl) return profile.pdfFileName || 'PDF público disponível';
-  if (profile.pdfDataUrl) return 'PDF local gerado. Gere novamente para publicar.';
+  if (profile.pdfDataUrl) return 'PDF local gerado. Verifique o upload público.';
   return 'Ainda não gerado';
 };
 
@@ -176,7 +176,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
         pdfDataUrl: result.pdfDataUrl,
         pdfFileName: fileName,
         pdfGeneratedAt: result.generatedAt || new Date().toISOString(),
-        pdfError: upload.publicUrl ? null : upload.error || 'PDF gerado localmente, mas sem link público.',
+        pdfError: upload.publicUrl
+          ? null
+          : `${upload.error || 'PDF gerado localmente, mas sem link público.'} Verifique se o bucket carol-pdfs existe no Supabase Storage e está público.`,
         pdfPublicUrl: upload.publicUrl || null,
         pdfStoragePath: upload.path || null,
       };
@@ -194,7 +196,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
         title: upload.publicUrl ? 'PDF gerado e publicado' : 'PDF gerado localmente',
         description: upload.publicUrl
           ? `${productName} de ${profile.name} ficou pronto para compartilhar.`
-          : 'O PDF foi gerado, mas o envio por WhatsApp fica bloqueado até existir link público.',
+          : `${updates.pdfError}`,
         variant: upload.publicUrl ? undefined : 'destructive',
       });
     } finally {
@@ -382,6 +384,12 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 
         {profile.notes && (
           <p className="rounded-md bg-white/[0.03] p-3 text-sm text-slate-300">{profile.notes}</p>
+        )}
+
+        {profile.pdfError && (
+          <div className="rounded-md border border-red-400/25 bg-red-500/10 p-3 text-sm text-red-100">
+            {profile.pdfError}
+          </div>
         )}
 
         <div className="flex flex-col gap-3 border-t border-white/10 pt-4">
