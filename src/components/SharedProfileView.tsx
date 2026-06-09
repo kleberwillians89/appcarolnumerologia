@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getSharedProfile } from '@/utils/shareProfileUtils';
+import { decodeSharePayload, getSharedProfile } from '@/utils/shareProfileUtils';
 import { Card } from '@/components/ui/card';
 import { formatDateBR } from '@/utils/dateUtils';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,18 @@ export const SharedProfileView = () => {
 
   useEffect(() => {
     if (shareId) {
+      const hashQuery = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '';
+      const params = new URLSearchParams(window.location.search || hashQuery);
+      const payload = params.get('payload');
+      if (payload) {
+        const decoded = decodeSharePayload(payload);
+        if (decoded) {
+          setProfile(decoded);
+          setLoading(false);
+          return;
+        }
+      }
+
       const sharedProfile = getSharedProfile(shareId);
       if (sharedProfile) {
         setProfile(sharedProfile.profile);
@@ -49,7 +61,8 @@ export const SharedProfileView = () => {
     );
   }
 
-  const { userData, results, lifeCycles, challenges, presents } = profile;
+  const userData = profile.userData || { name: profile.name, birthDate: profile.birthDate };
+  const results = profile.results;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
@@ -83,6 +96,30 @@ export const SharedProfileView = () => {
             ))}
           </div>
         </Card>
+
+        {profile.pdfPublicUrl && (
+          <Card className="p-6 mb-6">
+            <h2 className="text-xl font-bold mb-3">PDF</h2>
+            <Button asChild>
+              <a href={profile.pdfPublicUrl} target="_blank" rel="noreferrer">
+                Abrir / baixar PDF
+              </a>
+            </Button>
+          </Card>
+        )}
+
+        {profile.materials && profile.materials.length > 0 && (
+          <Card className="p-6 mb-6">
+            <h2 className="text-xl font-bold mb-3">Materiais complementares</h2>
+            <div className="space-y-2">
+              {profile.materials.map((material: any) => (
+                <a key={material.id || material.title} className="block text-purple-700 underline" href={material.url} target="_blank" rel="noreferrer">
+                  {material.title}
+                </a>
+              ))}
+            </div>
+          </Card>
+        )}
 
       </div>
     </div>

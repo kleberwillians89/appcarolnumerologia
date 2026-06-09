@@ -10,7 +10,7 @@ import { ShareProfileModal } from './ShareProfileModal';
 import { BackupManager } from './BackupManager';
 import { Badge } from '@/components/ui/badge';
 import { getProfiles, deleteProfile, toggleFavorite, clearAllProfiles, updateProfile, SavedProfile, saveProfile, getAvailableTags } from '@/utils/profileStorage';
-import { saveSharedProfile, generateShareUrl, generateQRCodeUrl } from '@/utils/shareProfileUtils';
+import { saveSharedProfile, generateShareUrlForProfile, generateQRCodeUrl } from '@/utils/shareProfileUtils';
 import { useAppContext } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -142,10 +142,21 @@ export const SavedProfilesPage: React.FC = () => {
   };
 
   const handleShareProfile = (profile: SavedProfile) => {
-    const shareId = saveSharedProfile(profile);
-    const shareUrl = generateShareUrl(shareId);
+    if (!profile.pdfPublicUrl) {
+      toast({
+        title: 'PDF público necessário',
+        description: 'Gere o PDF e aguarde o upload público antes de compartilhar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const shareId = profile.shareId || saveSharedProfile(profile);
+    const shareUrl = profile.shareUrl || generateShareUrlForProfile(shareId, profile);
+    updateProfile(profile.id, { shareId, shareUrl, sharedAt: profile.sharedAt || new Date().toISOString() });
     const qrCodeUrl = generateQRCodeUrl(shareUrl);
-    setSharingProfile({ profile, shareUrl, qrCodeUrl });
+    setSharingProfile({ profile: { ...profile, shareId, shareUrl }, shareUrl, qrCodeUrl });
+    loadProfiles();
     toast({ title: 'Link gerado!', description: 'Compartilhe seu perfil com outras pessoas.' });
   };
 
@@ -244,7 +255,7 @@ export const SavedProfilesPage: React.FC = () => {
               <p className="text-sm mt-2">Salve seus cálculos para acessá-los rapidamente depois</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4">
               {filteredProfiles.map(profile => (
                 <ProfileCard
                   key={profile.id}
@@ -254,6 +265,7 @@ export const SavedProfilesPage: React.FC = () => {
                   onToggleFavorite={handleToggleFavorite}
                   onEdit={handleEditProfile}
                   onShare={handleShareProfile}
+                  onUpdate={handleSaveEdit}
                 />
 
               ))}

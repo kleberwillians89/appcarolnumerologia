@@ -3,11 +3,19 @@ import { supabase } from '@/lib/supabaseClient';
 import { isValidUuid } from './deliveryService';
 
 const BUCKET = 'pdfs';
+const PROFILE_BUCKET = 'carol-pdfs';
 
 const dataUrlToBlob = async (dataUrl: string) => {
   const response = await fetch(dataUrl);
   return response.blob();
 };
+
+const slugify = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '') || 'cliente';
 
 export const pdfStorageService = {
   async uploadPdf({
@@ -44,6 +52,37 @@ export const pdfStorageService = {
 
     if (error) return { success: false, error: error.message };
     return { success: true, path };
+  },
+
+  async uploadProfilePdf({
+    dataUrl,
+    fileName,
+    clientName,
+  }: {
+    dataUrl?: string | null;
+    fileName: string;
+    clientName: string;
+  }) {
+    if (!supabase || !hasSupabaseConfig) {
+      return { success: false, error: 'Supabase Storage não configurado.', publicUrl: null, path: null };
+    }
+
+    const fileBlob = dataUrl ? await dataUrlToBlob(dataUrl) : null;
+    if (!fileBlob) {
+      return { success: false, error: 'PDF não disponível para upload.', publicUrl: null, path: null };
+    }
+
+    const safeFileName = fileName.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase();
+    const path = `mapas/${slugify(clientName)}-${Date.now()}-${safeFileName}`;
+    const { error } = await supabase.storage.from(PROFILE_BUCKET).upload(path, fileBlob, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
+    if (error) return { success: false, error: error.message, publicUrl: null, path: null };
+
+    const { data } = supabase.storage.from(PROFILE_BUCKET).getPublicUrl(path);
+    return { success: true, path, publicUrl: data.publicUrl };
   },
 
   async createSignedPdfUrl(path: string, expiresIn = 60 * 60) {

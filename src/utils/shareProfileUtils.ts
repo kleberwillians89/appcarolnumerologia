@@ -42,6 +42,19 @@ export const saveSharedProfile = (profile: any): string => {
   return shareId;
 };
 
+export const encodeSharePayload = (payload: unknown): string => {
+  const json = JSON.stringify(payload);
+  return btoa(unescape(encodeURIComponent(json)));
+};
+
+export const decodeSharePayload = <T = any>(payload: string): T | null => {
+  try {
+    return JSON.parse(decodeURIComponent(escape(atob(payload))));
+  } catch {
+    return null;
+  }
+};
+
 // Get all shared profiles
 export const getSharedProfiles = (): Record<string, SharedProfile> => {
   const data = localStorage.getItem('sharedProfiles');
@@ -56,7 +69,23 @@ export const getSharedProfile = (id: string): SharedProfile | null => {
 
 // Generate share URL
 export const generateShareUrl = (shareId: string): string => {
-  return `${window.location.origin}/shared/${shareId}`;
+  return `${window.location.origin}${window.location.pathname}#/shared/${shareId}`;
+};
+
+export const generateShareUrlForProfile = (shareId: string, profile: any): string => {
+  const compactProfile = {
+    userData: {
+      name: profile.name,
+      birthDate: profile.birthDate,
+    },
+    productName: profile.productName || profile.profileName || profile.name,
+    pdfPublicUrl: profile.pdfPublicUrl,
+    pdfFileName: profile.pdfFileName,
+    materials: profile.materials || [],
+    results: profile.results,
+  };
+
+  return `${generateShareUrl(shareId)}?payload=${encodeURIComponent(encodeSharePayload(compactProfile))}`;
 };
 
 // Generate QR Code URL
