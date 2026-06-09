@@ -21,6 +21,29 @@ export interface ProductMaterialConfig {
 
 const configuredMaterial = (material: ProductMaterial) => material.url || material.type === 'text';
 
+const normalizeProductKey = (value?: string | null) => {
+  if (!value) return '';
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+const PRODUCT_ALIASES: Record<string, string> = {
+  mapa: 'mapa',
+  'mapa-da-alma': 'mapa',
+  'mapa-numerologico': 'mapa',
+  'desvende-seu-mapa': 'mapa',
+  'desvende-o-seu-mapa': 'mapa',
+  'ano-pessoal': 'ano_pessoal',
+  'ano-pessoal-completo': 'ano_pessoal',
+  ano_pessoal: 'ano_pessoal',
+  'curso-numerologia-basica': 'curso_numerologia_basica',
+  curso_numerologia_basica: 'curso_numerologia_basica',
+};
+
 export const PRODUCT_MATERIALS: Record<string, ProductMaterialConfig> = {
   mapa: {
     productKey: 'mapa',
@@ -72,17 +95,51 @@ export const PRODUCT_MATERIALS: Record<string, ProductMaterialConfig> = {
   },
 };
 
-export const getProductMaterialConfig = (productKey: string): ProductMaterialConfig => {
+export const resolveProductMaterialKey = (product: unknown): string => {
+  if (!product) return '';
+
+  if (typeof product === 'string') {
+    const normalized = normalizeProductKey(product);
+    return PRODUCT_ALIASES[normalized] || PRODUCT_ALIASES[product] || normalized;
+  }
+
+  if (typeof product === 'object') {
+    const productRecord = product as Record<string, unknown>;
+    const candidates = [
+      productRecord.productKey,
+      productRecord.productId,
+      productRecord.produto,
+      productRecord.product,
+      productRecord.productName,
+      productRecord.tipoProduto,
+      productRecord.tipo_produto,
+      (productRecord.dadosCliente as Record<string, unknown> | undefined)?.productKey,
+      (productRecord.dadosCliente as Record<string, unknown> | undefined)?.produto,
+      (productRecord.dados_cliente as Record<string, unknown> | undefined)?.productKey,
+      (productRecord.dados_cliente as Record<string, unknown> | undefined)?.produto,
+    ];
+
+    for (const candidate of candidates) {
+      const key = resolveProductMaterialKey(candidate);
+      if (key) return key;
+    }
+  }
+
+  return '';
+};
+
+export const getProductMaterialConfig = (product: unknown): ProductMaterialConfig => {
+  const productKey = resolveProductMaterialKey(product);
   return PRODUCT_MATERIALS[productKey] || {
     productKey,
-    productName: productKey,
+    productName: productKey || 'Produto',
     deliveryType: 'PDF_PERSONALIZADO',
     materials: [],
   };
 };
 
-export const getProductMaterials = (productKey: string) => getProductMaterialConfig(productKey).materials;
+export const getProductMaterials = (product: unknown) => getProductMaterialConfig(product).materials;
 
-export const getProductDeliveryType = (productKey: string) => getProductMaterialConfig(productKey).deliveryType;
+export const getProductDeliveryType = (product: unknown) => getProductMaterialConfig(product).deliveryType;
 
-export const getProductConfiguredName = (productKey: string) => getProductMaterialConfig(productKey).productName;
+export const getProductConfiguredName = (product: unknown) => getProductMaterialConfig(product).productName;
