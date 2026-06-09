@@ -245,7 +245,7 @@ export const CompatibilitySection = () => {
                   <Heart className="h-5 w-5 text-purple-500" />
                   Selecionar Perfil para Compatibilidade
                 </div>
-                <Button onClick={() => setShowCreateModal(true)} variant="outline" size="sm" className="border-purple-500/50 text-purple-500">
+                <Button onClick={() => setShowCreateModal(true)} variant="outline" size="sm" className="border-purple-500/50 bg-slate-900/30 text-purple-200 hover:bg-slate-800 hover:text-white">
                   <UserPlus className="w-4 h-4 mr-2" />
                   Criar Novo
                 </Button>

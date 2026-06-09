@@ -97,16 +97,16 @@ export const HistoryPage: React.FC = () => {
       </div>
 
       <div className="flex gap-2">
-        <Button onClick={() => setFilter('all')} variant={filter === 'all' ? 'default' : 'outline'}>
+        <Button onClick={() => setFilter('all')} variant={filter === 'all' ? 'default' : 'outline'} className={filter === 'all' ? 'bg-yellow-500 text-white hover:bg-yellow-600' : 'border-slate-600 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white'}>
           Todos ({history.length})
         </Button>
-        <Button onClick={() => setFilter('numerology')} variant={filter === 'numerology' ? 'default' : 'outline'}>
+        <Button onClick={() => setFilter('numerology')} variant={filter === 'numerology' ? 'default' : 'outline'} className={filter === 'numerology' ? 'bg-yellow-500 text-white hover:bg-yellow-600' : 'border-slate-600 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white'}>
           Mapas ({history.filter(e => e.type === 'numerology').length})
         </Button>
-        <Button onClick={() => setFilter('compatibility')} variant={filter === 'compatibility' ? 'default' : 'outline'}>
+        <Button onClick={() => setFilter('compatibility')} variant={filter === 'compatibility' ? 'default' : 'outline'} className={filter === 'compatibility' ? 'bg-yellow-500 text-white hover:bg-yellow-600' : 'border-slate-600 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white'}>
           Compatibilidade ({history.filter(e => e.type === 'compatibility').length})
         </Button>
-        <Button onClick={() => setFilter('personalYear')} variant={filter === 'personalYear' ? 'default' : 'outline'}>
+        <Button onClick={() => setFilter('personalYear')} variant={filter === 'personalYear' ? 'default' : 'outline'} className={filter === 'personalYear' ? 'bg-yellow-500 text-white hover:bg-yellow-600' : 'border-slate-600 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white'}>
           Ano Pessoal ({history.filter(e => e.type === 'personalYear').length})
         </Button>
       </div>
@@ -131,7 +131,7 @@ export const HistoryPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => handleRegeneratePDF(entry)} size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-slate-900">
+                  <Button onClick={() => handleRegeneratePDF(entry)} size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white">
                     Baixar PDF
 
                   </Button>
@@ -156,4 +156,3 @@ export const HistoryPage: React.FC = () => {
     </div>
   );
 };
-

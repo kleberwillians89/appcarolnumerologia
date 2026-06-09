@@ -144,7 +144,7 @@ export const PdfErrorModal: React.FC<PdfErrorModalProps> = ({
 
         {/* Actions */}
         <div className="flex gap-3 p-6 border-t border-slate-700">
-          <Button onClick={onRetry} className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-semibold">
+          <Button onClick={onRetry} className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold">
             <RefreshCw className="w-4 h-4 mr-2" />
             Tentar Novamente
           </Button>

@@ -73,7 +73,7 @@ const AppLayout: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 sm:gap-4">
                 <span className="text-slate-300 text-xs sm:text-sm hidden sm:inline">{profile?.full_name || profile?.name || user?.email}</span>
-                <button onClick={handleLogout} className="px-2 sm:px-4 py-1.5 sm:py-2 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-semibold rounded-lg transition-colors text-xs sm:text-sm">Sair</button>
+                <button onClick={handleLogout} className="px-2 sm:px-4 py-1.5 sm:py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-lg transition-colors text-xs sm:text-sm">Sair</button>
               </div>
             </div>
             
@@ -86,7 +86,7 @@ const AppLayout: React.FC = () => {
                     onClick={() => setActiveTab(tab.id)}
                     className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold transition-all whitespace-nowrap text-xs sm:text-sm ${
                       activeTab === tab.id
-                        ? 'bg-yellow-500 text-slate-900'
+                        ? 'bg-yellow-500 text-white'
                         : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
                     }`}
                   >

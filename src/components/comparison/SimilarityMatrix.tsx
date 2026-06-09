@@ -44,9 +44,9 @@ export default function SimilarityMatrix({ matrixData }: SimilarityMatrixProps) 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CardTitle className="text-white">Matriz de Similaridade</CardTitle>
-            <Badge variant="secondary">{profiles.length}x{profiles.length}</Badge>
+            <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-200 border-yellow-500/30">{profiles.length}x{profiles.length}</Badge>
           </div>
-          <Button onClick={handleExportPNG} variant="outline" size="sm" className="gap-2">
+          <Button onClick={handleExportPNG} variant="outline" size="sm" className="gap-2 border-slate-500 bg-slate-900/40 text-slate-100 hover:bg-slate-700 hover:text-white">
             <ImageIcon className="h-4 w-4" />
             Exportar PNG
           </Button>

@@ -42,7 +42,7 @@ export default function ProfileSelectionCard({
                   <h4 className="font-semibold text-white">{profile.profileName}</h4>
                   {profile.favorite && <Star className="h-4 w-4 text-yellow-500 fill-current" />}
                 </div>
-                <div className="flex items-center gap-4 text-sm text-slate-400">
+                <div className="flex items-center gap-4 text-sm text-slate-300">
                   <span className="flex items-center gap-1">
                     <User className="h-3 w-3" />
                     {profile.name}
@@ -54,10 +54,10 @@ export default function ProfileSelectionCard({
                 </div>
               </div>
               <div className="flex gap-2">
-                <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-500">
+                <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-200 border-yellow-500/30">
                   {profile.results?.soul || '-'}
                 </Badge>
-                <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
+                <Badge variant="secondary" className="bg-purple-500/20 text-purple-200 border-purple-500/30">
                   {profile.results?.destiny || '-'}
                 </Badge>
               </div>
@@ -71,7 +71,7 @@ export default function ProfileSelectionCard({
               }}
               className="ml-2"
             >
-              <Star className={`h-4 w-4 ${profile.favorite ? 'fill-current text-yellow-500' : 'text-slate-400'}`} />
+              <Star className={`h-4 w-4 ${profile.favorite ? 'fill-current text-yellow-300' : 'text-slate-300'}`} />
             </Button>
           </div>
         </CardContent>
@@ -100,20 +100,20 @@ export default function ProfileSelectionCard({
             }}
             className="ml-auto -mt-1 -mr-1"
           >
-            <Star className={`h-4 w-4 ${profile.favorite ? 'fill-current text-yellow-500' : 'text-slate-400'}`} />
+            <Star className={`h-4 w-4 ${profile.favorite ? 'fill-current text-yellow-300' : 'text-slate-300'}`} />
           </Button>
         </div>
         <h4 className="font-semibold text-white mb-2">{profile.profileName}</h4>
-        <p className="text-sm text-slate-400 mb-3">{profile.name}</p>
+        <p className="text-sm text-slate-300 mb-3">{profile.name}</p>
         <div className="flex gap-2 mb-3">
-          <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-500">
+          <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-200 border-yellow-500/30">
             Alma: {profile.results?.soul || '-'}
           </Badge>
-          <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
+          <Badge variant="secondary" className="bg-purple-500/20 text-purple-200 border-purple-500/30">
             Destino: {profile.results?.destiny || '-'}
           </Badge>
         </div>
-        <p className="text-xs text-slate-500 flex items-center gap-1">
+        <p className="text-xs text-slate-400 flex items-center gap-1">
           <Calendar className="h-3 w-3" />
           {formattedDate}
         </p>

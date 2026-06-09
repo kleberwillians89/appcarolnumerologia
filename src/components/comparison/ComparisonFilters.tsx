@@ -37,7 +37,7 @@ export default function ComparisonFilters({
             <Filter className="h-5 w-5 text-purple-500" />
             <h3 className="font-semibold text-white">Filtros Inteligentes</h3>
           </div>
-          <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
+          <Badge variant="secondary" className="bg-purple-500/20 text-purple-200 border-purple-500/30">
             {profileCount} perfis
           </Badge>
         </div>

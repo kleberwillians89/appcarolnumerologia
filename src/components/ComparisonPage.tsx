@@ -207,11 +207,11 @@ export default function ComparisonPage() {
               Perfis para Comparar
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={() => setShowCreateModal(true)} variant="outline" size="sm" className="border-yellow-500/50 text-yellow-500">
+              <Button onClick={() => setShowCreateModal(true)} variant="outline" size="sm" className="border-yellow-500/50 bg-slate-900/30 text-yellow-200 hover:bg-slate-800 hover:text-white">
                 <UserPlus className="w-4 h-4 mr-2" />
                 Criar Novo
               </Button>
-              <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-500">
+              <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-200 border-yellow-500/30">
                 {selected.length}/5
               </Badge>
             </div>
@@ -221,7 +221,7 @@ export default function ComparisonPage() {
           {filteredProfiles.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-slate-300">Nenhum perfil salvo</p>
-              <Button onClick={() => setShowCreateModal(true)} className="mt-4 bg-yellow-500 hover:bg-yellow-600 text-slate-900">
+              <Button onClick={() => setShowCreateModal(true)} className="mt-4 bg-yellow-500 hover:bg-yellow-600 text-white">
                 Criar Primeiro Perfil
               </Button>
             </div>
@@ -240,7 +240,7 @@ export default function ComparisonPage() {
             </div>
           )}
           <Button 
-            className="mt-6 w-full bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-semibold" 
+            className="mt-6 w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold"
             disabled={!canCompare}
             onClick={() => setComparing(true)}
           >
@@ -259,12 +259,12 @@ export default function ComparisonPage() {
           </div>
 
           <Tabs defaultValue="table" className="w-full">
-            <TabsList className="grid w-full grid-cols-5 bg-slate-800/50">
-              <TabsTrigger value="table">Tabela</TabsTrigger>
-              <TabsTrigger value="numbers">Números</TabsTrigger>
-              <TabsTrigger value="compatibility">Compatibilidade</TabsTrigger>
-              <TabsTrigger value="cycles">Ciclos</TabsTrigger>
-              <TabsTrigger value="charts">Gráficos</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5 bg-slate-800/50 text-slate-300">
+              <TabsTrigger value="table" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">Tabela</TabsTrigger>
+              <TabsTrigger value="numbers" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">Números</TabsTrigger>
+              <TabsTrigger value="compatibility" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">Compatibilidade</TabsTrigger>
+              <TabsTrigger value="cycles" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">Ciclos</TabsTrigger>
+              <TabsTrigger value="charts" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">Gráficos</TabsTrigger>
             </TabsList>
             <TabsContent value="table"><MultiProfileTable profiles={allSelectedProfiles} /></TabsContent>
             <TabsContent value="numbers"><NumbersComparison profiles={allSelectedProfiles} highlightIdentical={true} showOnlyDifferences={false} /></TabsContent>

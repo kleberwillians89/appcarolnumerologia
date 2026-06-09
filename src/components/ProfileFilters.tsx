@@ -67,7 +67,7 @@ export default function ProfileFilters({
           <SlidersHorizontal className="h-5 w-5 text-yellow-500" />
           <h3 className="font-semibold text-white">Filtros e Ordenação</h3>
         </div>
-        <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-500">
+        <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-200 border-yellow-500/30">
           {filteredCount} de {totalProfiles} perfis
         </Badge>
       </div>
@@ -87,7 +87,7 @@ export default function ProfileFilters({
           <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-slate-950 border-slate-700 text-slate-100">
             <SelectItem value="newest">Mais Recente</SelectItem>
             <SelectItem value="oldest">Mais Antigo</SelectItem>
             <SelectItem value="alphabetical">A-Z</SelectItem>
@@ -100,7 +100,7 @@ export default function ProfileFilters({
             variant={showFavoritesOnly ? "default" : "outline"}
             size="icon"
             onClick={onToggleFavorites}
-            className={showFavoritesOnly ? "bg-yellow-500 hover:bg-yellow-600" : ""}
+            className={showFavoritesOnly ? "bg-yellow-500 text-white hover:bg-yellow-600" : "border-slate-600 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white"}
           >
             <Star className={`h-4 w-4 ${showFavoritesOnly ? 'fill-current' : ''}`} />
           </Button>
@@ -108,6 +108,7 @@ export default function ProfileFilters({
             variant={viewMode === 'grid' ? "default" : "outline"}
             size="icon"
             onClick={() => onViewModeChange('grid')}
+            className={viewMode === 'grid' ? "bg-yellow-500 text-white hover:bg-yellow-600" : "border-slate-600 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white"}
           >
             <Grid3x3 className="h-4 w-4" />
           </Button>
@@ -115,6 +116,7 @@ export default function ProfileFilters({
             variant={viewMode === 'list' ? "default" : "outline"}
             size="icon"
             onClick={() => onViewModeChange('list')}
+            className={viewMode === 'list' ? "bg-yellow-500 text-white hover:bg-yellow-600" : "border-slate-600 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white"}
           >
             <List className="h-4 w-4" />
           </Button>
@@ -132,7 +134,7 @@ export default function ProfileFilters({
               <Badge
                 key={tag}
                 variant={selectedTags.includes(tag) ? "default" : "outline"}
-                className="cursor-pointer hover:bg-primary/90"
+                className={selectedTags.includes(tag) ? "cursor-pointer border-yellow-500 bg-yellow-500 text-white hover:bg-yellow-600" : "cursor-pointer border-slate-400 text-slate-300 hover:bg-slate-800 hover:text-white"}
                 onClick={() => toggleTag(tag)}
               >
                 {tag}
@@ -144,4 +146,3 @@ export default function ProfileFilters({
     </div>
   );
 }
-

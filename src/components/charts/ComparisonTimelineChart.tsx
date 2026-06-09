@@ -70,7 +70,7 @@ export default function ComparisonTimelineChart({ profiles }: Props) {
     <div className="space-y-3 md:space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <h3 className="text-base md:text-xl font-semibold text-white">Linha do Tempo dos Ciclos de Vida</h3>
-        <Button onClick={handleExport} size="sm" variant="outline" className="text-xs md:text-sm">
+        <Button onClick={handleExport} size="sm" variant="outline" className="border-slate-500 bg-slate-900/40 text-xs text-slate-100 hover:bg-slate-700 hover:text-white md:text-sm">
           <Download className="mr-1 md:mr-2 h-3 w-3 md:h-4 md:w-4" />
           Exportar
         </Button>

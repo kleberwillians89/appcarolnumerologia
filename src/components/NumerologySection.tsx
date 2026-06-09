@@ -349,7 +349,7 @@ export const NumerologySection = () => {
           <button 
             onClick={() => handleGeneratePdf(false)} 
             disabled={isGeneratingPdf}
-            className="px-8 py-3 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-bold rounded-lg transform hover:scale-105 transition-all duration-200 shadow-lg disabled:opacity-60"
+            className="px-8 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-bold rounded-lg transform hover:scale-105 transition-all duration-200 shadow-lg disabled:opacity-60"
           >
             {isGeneratingPdf ? 'Gerando...' : '📄 Gerar PDF'}
           </button>
@@ -362,7 +362,7 @@ export const NumerologySection = () => {
           </button>
           <button 
             onClick={() => setShowLifeJourney(true)} 
-            className="px-8 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 text-slate-900 font-bold rounded-lg hover:from-yellow-600 hover:to-yellow-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
+            className="px-8 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-bold rounded-lg hover:from-yellow-600 hover:to-yellow-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
           >
             🌟 Jornada da Vida
           </button>
