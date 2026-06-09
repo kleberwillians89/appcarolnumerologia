@@ -30,6 +30,7 @@ import {
 } from './mapaDaAlmaPdfTypes';
 
 import { renderCapaPage } from './mapaDaAlmaPdfPage1';
+import { renderMapaSummaryPage } from './mapaDaAlmaPdfSummaryPage';
 import { renderNumerosPageA } from './mapaDaAlmaPdfPage2A';
 import { renderNumerosPageB } from './mapaDaAlmaPdfPage2B';
 
@@ -266,6 +267,10 @@ export const generateMapaDaAlmaPDF = async (data: MapaDaAlmaData, previewMode = 
 
     // 1 - Capa premium
     await renderCapaPage(pdf, mapaData.capa.nome, mapaData.capa.dataNascimento, dataEmissao);
+
+    // 2 - Resumo do Mapa Numerológico
+    pdf.addPage();
+    await renderMapaSummaryPage(pdf, mapaData);
 
     // 2A - Números Essenciais (Parte 1: Alma, Destino, Talento)
     pdf.addPage();
