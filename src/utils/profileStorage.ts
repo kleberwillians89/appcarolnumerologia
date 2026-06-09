@@ -1,5 +1,3 @@
-export type ProfilePdfStatus = 'PENDENTE' | 'EM_ANALISE' | 'PDF_GERADO' | 'ENVIADO' | 'ERRO';
-
 export interface SavedProfile {
   id: string;
   profileName: string;
@@ -15,12 +13,6 @@ export interface SavedProfile {
   notes?: string;
   favorite?: boolean;
   tags?: string[];
-  pdfStatus?: ProfilePdfStatus;
-  pdfDataUrl?: string | null;
-  pdfFileName?: string | null;
-  pdfGeneratedAt?: string | null;
-  pdfSentAt?: string | null;
-  pdfError?: string | null;
 }
 
 const PROFILES_KEY = 'saved_numerology_profiles';
@@ -59,11 +51,8 @@ export const saveProfile = (profile: Omit<SavedProfile, 'id' | 'timestamp' | 'la
   // Se o perfil já tem ID, é uma restauração de backup
   if ('id' in profile && profile.id) {
     const existingProfile = profile as SavedProfile;
-    const existingIndex = profiles.findIndex((item) => item.id === existingProfile.id);
-    const nextProfiles = existingIndex >= 0
-      ? profiles.map((item) => (item.id === existingProfile.id ? { ...item, ...existingProfile, lastModified: Date.now() } : item))
-      : [existingProfile, ...profiles];
-    localStorage.setItem(PROFILES_KEY, JSON.stringify(nextProfiles));
+    profiles.unshift(existingProfile);
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
     
     // Dispatch custom event to notify other components
     window.dispatchEvent(new CustomEvent('profilesUpdated'));
@@ -98,7 +87,7 @@ export const getProfiles = (): SavedProfile[] => {
   }
 };
 
-export const updateProfile = (id: string, updates: Partial<SavedProfile>): SavedProfile | null => {
+export const updateProfile = (id: string, updates: Partial<SavedProfile>): void => {
   const profiles = getProfiles();
   const index = profiles.findIndex(p => p.id === id);
   if (index !== -1) {
@@ -107,10 +96,7 @@ export const updateProfile = (id: string, updates: Partial<SavedProfile>): Saved
     
     // Dispatch custom event to notify other components
     window.dispatchEvent(new CustomEvent('profilesUpdated'));
-    return profiles[index];
   }
-
-  return null;
 };
 
 
