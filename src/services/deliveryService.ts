@@ -345,6 +345,21 @@ const localDeliveryStore = {
   },
 };
 
+const mergeDeliveryLists = (primary: Delivery[], secondary: Delivery[]) => {
+  const merged = [...primary];
+
+  secondary.forEach((delivery) => {
+    const exists = merged.some((item) =>
+      item.id === delivery.id ||
+      Boolean(item.localId && delivery.localId && item.localId === delivery.localId)
+    );
+
+    if (!exists) merged.push(delivery);
+  });
+
+  return merged;
+};
+
 export const deliveryService = {
   listDeliveries(): Delivery[] {
     return localDeliveryStore.listDeliveries();
@@ -363,7 +378,10 @@ export const deliveryService = {
       console.warn('[deliveryService] Usando entregas locais apos erro no Supabase', error.message);
       return localDeliveryStore.listDeliveries();
     }
-    return (data || []).map(mapDeliveryFromSupabase);
+
+    const remoteDeliveries = (data || []).map(mapDeliveryFromSupabase);
+    const storedDeliveries = readStoredDeliveries();
+    return storedDeliveries ? mergeDeliveryLists(storedDeliveries, remoteDeliveries) : remoteDeliveries;
   },
 
   async fetchDeliveriesForCurrentUser(userId: string): Promise<Delivery[]> {
@@ -441,6 +459,10 @@ export const deliveryService = {
 
     if (!isValidUuid(id)) {
       console.warn('[deliveryService] Tentativa de atualizar entrega sem UUID real', { id, payload });
+      const existing = localDeliveryStore.listDeliveries().find((delivery) => delivery.id === id);
+      if (existing) {
+        return localDeliveryStore.upsertDelivery({ ...existing, ...payload, id });
+      }
       if (hasMinimumCreateFields(payload)) {
         return this.createDelivery(payload as DeliveryCreateInput);
       }

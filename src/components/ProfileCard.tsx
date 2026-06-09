@@ -88,6 +88,16 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           <Badge variant="secondary">{typeLabels[profile.type]}</Badge>
           <Badge variant={statusVariants[status]}>{statusLabels[status]}</Badge>
         </div>
+        <div className="grid grid-cols-2 gap-2 pt-1 text-sm">
+          <div className="rounded-md bg-muted/50 p-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
+            <p className="mt-1 font-medium">{statusLabels[status]}</p>
+          </div>
+          <div className="rounded-md bg-muted/50 p-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Arquivo/PDF</p>
+            <p className="mt-1 truncate font-medium">{hasPdf ? 'PDF gerado' : 'Ainda não gerado'}</p>
+          </div>
+        </div>
         {profile.pdfGeneratedAt && (
           <p className="text-xs text-muted-foreground">
             PDF gerado em {new Date(profile.pdfGeneratedAt).toLocaleString('pt-BR')}
@@ -143,22 +153,23 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          <Button size="sm" variant={status === 'PENDENTE' ? 'default' : 'outline'} onClick={() => onStatusChange(profile, 'PENDENTE')}>
-            Pendente
-          </Button>
-          <Button size="sm" variant={status === 'EM_ANALISE' ? 'default' : 'outline'} onClick={() => onStatusChange(profile, 'EM_ANALISE')}>
-            Em analise
-          </Button>
-          <Button size="sm" variant={status === 'PDF_GERADO' ? 'default' : 'outline'} onClick={() => onStatusChange(profile, 'PDF_GERADO')}>
-            PDF gerado
-          </Button>
-          <Button size="sm" variant={status === 'ENVIADO' ? 'default' : 'outline'} onClick={() => onStatusChange(profile, 'ENVIADO')}>
-            Enviado
-          </Button>
-          <Button size="sm" variant={status === 'ERRO' ? 'destructive' : 'outline'} onClick={() => onStatusChange(profile, 'ERRO')}>
-            Erro
-          </Button>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground" htmlFor={`profile-status-${profile.id}`}>
+            Atualizar status
+          </label>
+          <select
+            id={`profile-status-${profile.id}`}
+            value={status}
+            onChange={(event) => onStatusChange(profile, event.target.value as ProfilePdfStatus)}
+            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="PENDENTE">Dados recebidos / Pendente</option>
+            <option value="EM_ANALISE">Em analise</option>
+            <option value="EM_ANALISE">Pronto para gerar PDF</option>
+            <option value="PDF_GERADO">PDF gerado</option>
+            <option value="ENVIADO">Enviado</option>
+            <option value="ERRO">Erro</option>
+          </select>
         </div>
 
         <div className="flex gap-2">

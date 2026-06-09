@@ -59,8 +59,11 @@ export const saveProfile = (profile: Omit<SavedProfile, 'id' | 'timestamp' | 'la
   // Se o perfil já tem ID, é uma restauração de backup
   if ('id' in profile && profile.id) {
     const existingProfile = profile as SavedProfile;
-    profiles.unshift(existingProfile);
-    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    const existingIndex = profiles.findIndex((item) => item.id === existingProfile.id);
+    const nextProfiles = existingIndex >= 0
+      ? profiles.map((item) => (item.id === existingProfile.id ? { ...item, ...existingProfile, lastModified: Date.now() } : item))
+      : [existingProfile, ...profiles];
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(nextProfiles));
     
     // Dispatch custom event to notify other components
     window.dispatchEvent(new CustomEvent('profilesUpdated'));
@@ -95,7 +98,7 @@ export const getProfiles = (): SavedProfile[] => {
   }
 };
 
-export const updateProfile = (id: string, updates: Partial<SavedProfile>): void => {
+export const updateProfile = (id: string, updates: Partial<SavedProfile>): SavedProfile | null => {
   const profiles = getProfiles();
   const index = profiles.findIndex(p => p.id === id);
   if (index !== -1) {
@@ -104,7 +107,10 @@ export const updateProfile = (id: string, updates: Partial<SavedProfile>): void 
     
     // Dispatch custom event to notify other components
     window.dispatchEvent(new CustomEvent('profilesUpdated'));
+    return profiles[index];
   }
+
+  return null;
 };
 
 

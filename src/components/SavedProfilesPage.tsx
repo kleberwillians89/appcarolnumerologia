@@ -52,6 +52,23 @@ export const SavedProfilesPage: React.FC = () => {
     setFilteredProfiles(loaded);
   };
 
+  const replaceProfileInState = (updatedProfile: SavedProfile) => {
+    setProfiles((currentProfiles) =>
+      currentProfiles.map((profile) => (profile.id === updatedProfile.id ? updatedProfile : profile))
+    );
+  };
+
+  const updateSavedProfile = (id: string, updates: Partial<SavedProfile>) => {
+    const updatedProfile = updateProfile(id, updates);
+    if (updatedProfile) {
+      replaceProfileInState(updatedProfile);
+      return updatedProfile;
+    }
+
+    loadProfiles();
+    return null;
+  };
+
   useEffect(() => {
     loadProfiles();
   }, []);
@@ -145,8 +162,7 @@ export const SavedProfilesPage: React.FC = () => {
   };
 
   const handleSaveEdit = (id: string, updates: Partial<SavedProfile>) => {
-    updateProfile(id, updates);
-    loadProfiles();
+    updateSavedProfile(id, updates);
     toast({ title: 'Perfil atualizado', description: 'As alterações foram salvas com sucesso.' });
   };
 
@@ -186,24 +202,22 @@ export const SavedProfilesPage: React.FC = () => {
     setGeneratingPdfId(profile.id);
     try {
       const result = await generateProfilePDF(profile);
-      updateProfile(profile.id, {
+      updateSavedProfile(profile.id, {
         pdfStatus: 'PDF_GERADO',
         pdfDataUrl: result.dataUrl,
         pdfFileName: result.fileName,
         pdfGeneratedAt: new Date().toISOString(),
         pdfError: null,
       });
-      loadProfiles();
       toast({
         title: 'PDF gerado',
         description: `${result.fileName} ficou disponível para download.`,
       });
     } catch (error) {
-      updateProfile(profile.id, {
+      updateSavedProfile(profile.id, {
         pdfStatus: 'ERRO',
         pdfError: error instanceof Error ? error.message : 'Erro inesperado ao gerar PDF.',
       });
-      loadProfiles();
       toast({
         title: 'Não foi possível gerar o PDF',
         description: error instanceof Error ? error.message : 'Verifique os dados do perfil e tente novamente.',
@@ -255,15 +269,16 @@ export const SavedProfilesPage: React.FC = () => {
       statusUpdates.pdfSentAt = null;
     }
 
-    updateProfile(profile.id, {
+    const updatedProfile = updateSavedProfile(profile.id, {
       ...statusUpdates,
     });
-    loadProfiles();
 
-    toast({
-      title: 'Status atualizado',
-      description: `${profile.profileName} agora está como ${status}.`,
-    });
+    if (updatedProfile) {
+      toast({
+        title: 'Status atualizado',
+        description: `${profile.profileName} agora está como ${status}.`,
+      });
+    }
   };
 
   const availableTags = getAvailableTags();

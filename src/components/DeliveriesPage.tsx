@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Eye, FileText, Mail, MessageCircle, Phone, Send } from 'lucide-react';
+import { Calendar, Download, Eye, FileText, Mail, MessageCircle, Phone, Send } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,6 +78,7 @@ const getPdfLabel = (delivery: Delivery) => {
 const statusOptions: DeliveryStatus[] = [
   'DADOS_RECEBIDOS',
   'AGUARDANDO_DADOS',
+  'AGUARDANDO_ANALISE',
   'PRONTO_PARA_GERAR_PDF',
   'PDF_GERADO',
   'PDF_ENVIADO',
@@ -93,10 +94,61 @@ export const DeliveriesPage: React.FC = () => {
   const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(true);
   const { toast } = useToast();
 
+  const downloadDeliveryPdf = (delivery: Delivery) => {
+    if (delivery.pdfDataUrl && delivery.fileName) {
+      const link = document.createElement('a');
+      link.href = delivery.pdfDataUrl;
+      link.download = delivery.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    if (delivery.linkPdf && delivery.linkPdf.startsWith('http')) {
+      window.open(delivery.linkPdf, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    toast({
+      title: 'PDF indisponível',
+      description: 'Gere o PDF novamente para baixar o arquivo local.',
+      variant: 'destructive',
+    });
+  };
+
+  const upsertVisibleDelivery = (updatedDelivery: Delivery) => {
+    setDeliveries((currentDeliveries) => {
+      const index = currentDeliveries.findIndex((delivery) =>
+        delivery.id === updatedDelivery.id ||
+        Boolean(delivery.localId && updatedDelivery.localId && delivery.localId === updatedDelivery.localId)
+      );
+
+      if (index === -1) return [updatedDelivery, ...currentDeliveries];
+
+      return currentDeliveries.map((delivery, currentIndex) =>
+        currentIndex === index ? { ...delivery, ...updatedDelivery } : delivery
+      );
+    });
+
+    setSelectedDelivery((current) =>
+      current && (current.id === updatedDelivery.id || current.localId === updatedDelivery.localId)
+        ? { ...current, ...updatedDelivery }
+        : current
+    );
+
+    setWhatsAppDelivery((current) =>
+      current && (current.id === updatedDelivery.id || current.localId === updatedDelivery.localId)
+        ? { ...current, ...updatedDelivery }
+        : current
+    );
+  };
+
   const loadDeliveries = async () => {
     setIsLoadingDeliveries(true);
     try {
-      setDeliveries(await deliveryService.fetchDeliveriesForAdmin());
+      const loadedDeliveries = await deliveryService.fetchDeliveriesForAdmin();
+      setDeliveries(loadedDeliveries);
     } catch (error) {
       toast({
         title: 'Erro ao carregar entregas',
@@ -192,12 +244,13 @@ export const DeliveriesPage: React.FC = () => {
         }
       }
 
-      await deliveryService.updateDeliveryPdf(delivery, {
+      const updatedDelivery = await deliveryService.updateDeliveryPdf(delivery, {
         linkPdf,
         pdfDataUrl: result.pdfDataUrl,
         fileName: result.fileName,
         pdfStoragePath,
       });
+      upsertVisibleDelivery(updatedDelivery);
 
       toast({
         title: 'PDF gerado',
@@ -205,7 +258,6 @@ export const DeliveriesPage: React.FC = () => {
       });
     } finally {
       setIsGenerating(null);
-      await loadDeliveries();
     }
   };
 
@@ -229,9 +281,9 @@ export const DeliveriesPage: React.FC = () => {
         return;
       }
 
-      await deliveryService.markDeliveryAsSent(whatsAppDelivery, result.sentAt || new Date().toISOString());
+      const updatedDelivery = await deliveryService.markDeliveryAsSent(whatsAppDelivery, result.sentAt || new Date().toISOString());
+      upsertVisibleDelivery(updatedDelivery);
       setWhatsAppDelivery(null);
-      await loadDeliveries();
       toast({
         title: 'WhatsApp aberto',
         description: 'A entrega foi marcada como PDF enviado.',
@@ -249,8 +301,22 @@ export const DeliveriesPage: React.FC = () => {
 
   const handleStatusChange = async (delivery: Delivery, status: DeliveryStatus) => {
     try {
-      await deliveryService.updateDeliveryStatus(delivery.id, status);
-      await loadDeliveries();
+      if (status === 'PDF_GERADO' && !hasDeliveryPdf(delivery)) {
+        await handleGeneratePdf(delivery);
+        return;
+      }
+
+      if (status === 'PDF_ENVIADO' && !hasDeliveryPdf(delivery)) {
+        toast({
+          title: 'PDF necessário',
+          description: 'Gere o PDF antes de marcar a entrega como enviada.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const updatedDelivery = await deliveryService.updateDeliveryStatus(delivery.id, status);
+      upsertVisibleDelivery(updatedDelivery);
       toast({
         title: 'Status atualizado',
         description: `${delivery.nome} agora está como ${statusLabel[status]}.`,
@@ -365,7 +431,12 @@ export const DeliveriesPage: React.FC = () => {
                   </select>
                 </div>
 
-                {!hasDeliveryPdf(delivery) && (
+                {hasDeliveryPdf(delivery) ? (
+                  <Button className={`${premiumClasses.secondaryButton} w-full sm:w-auto`} onClick={() => downloadDeliveryPdf(delivery)}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Baixar PDF
+                  </Button>
+                ) : (
                   <Button className={`${premiumClasses.primaryButton} w-full sm:w-auto`} onClick={() => handleGeneratePdf(delivery)} disabled={isGenerating === delivery.id}>
                     <FileText className="mr-2 h-4 w-4" />
                     {isGenerating === delivery.id ? 'Gerando...' : 'Gerar PDF'}
