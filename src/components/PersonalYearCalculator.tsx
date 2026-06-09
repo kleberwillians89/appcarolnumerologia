@@ -226,7 +226,7 @@ const PersonalYearCalculator: React.FC = () => {
 
             toast({
               title: 'Entrega criada',
-              description: `${clientName.trim()} foi enviado para a aba Entregas.`,
+              description: `${clientName.trim()} foi registrado no fluxo operacional.`,
             });
           } catch (error) {
             console.warn('[PersonalYearCalculator] PDF gerado, mas a entrega não foi registrada', error);

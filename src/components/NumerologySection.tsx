@@ -252,7 +252,7 @@ export const NumerologySection = () => {
 
           toast({
             title: 'Entrega criada',
-            description: `${userData.name} foi enviado para a aba Entregas.`,
+            description: `${userData.name} foi registrado no fluxo operacional.`,
           });
         } catch (error) {
           console.warn('[NumerologySection] PDF gerado, mas a entrega não foi registrada', error);

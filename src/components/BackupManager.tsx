@@ -115,18 +115,18 @@ export const BackupManager = ({ profiles, onRestore }: BackupManagerProps) => {
     : 'Nunca';
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="space-y-6 text-slate-100">
+      <Card className="border border-yellow-500/20 bg-slate-900/75 text-slate-100 shadow-lg shadow-black/10">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Settings className="w-5 h-5 text-yellow-400" />
             Configurações de Backup Automático
           </CardTitle>
-          <CardDescription>Configure quando os backups automáticos devem ocorrer</CardDescription>
+          <CardDescription className="text-slate-300">Configure quando os backups automáticos devem ocorrer</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <Label htmlFor="enabled">Backup Automático</Label>
+            <Label htmlFor="enabled" className="text-slate-200">Backup Automático</Label>
             <Switch
               id="enabled"
               checked={config.enabled}
@@ -135,54 +135,56 @@ export const BackupManager = ({ profiles, onRestore }: BackupManagerProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="intervalDays">Intervalo (dias)</Label>
+            <Label htmlFor="intervalDays" className="text-slate-300">Intervalo (dias)</Label>
             <Input
               id="intervalDays"
               type="number"
               min="1"
               value={config.intervalDays}
               onChange={(e) => handleConfigChange('intervalDays', parseInt(e.target.value))}
+              className="bg-white text-slate-900"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="maxProfiles">Máximo de perfis antes do backup</Label>
+            <Label htmlFor="maxProfiles" className="text-slate-300">Máximo de perfis antes do backup</Label>
             <Input
               id="maxProfiles"
               type="number"
               min="1"
               value={config.maxProfilesBeforeBackup}
               onChange={(e) => handleConfigChange('maxProfilesBeforeBackup', parseInt(e.target.value))}
+              className="bg-white text-slate-900"
             />
           </div>
 
-          <Alert>
-            <Calendar className="w-4 h-4" />
-            <AlertDescription>
+          <Alert className="border-yellow-500/25 bg-white/[0.04] text-slate-200">
+            <Calendar className="w-4 h-4 text-yellow-400" />
+            <AlertDescription className="text-slate-200">
               Último backup: {lastBackupDate} ({config.lastBackupProfileCount} perfis)
             </AlertDescription>
           </Alert>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border border-yellow-500/20 bg-slate-900/75 text-slate-100 shadow-lg shadow-black/10">
         <CardHeader>
-          <CardTitle>Ações de Backup</CardTitle>
+          <CardTitle className="text-white">Ações de Backup</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button onClick={handleManualBackup} className="w-full">
+          <Button onClick={handleManualBackup} className="w-full bg-yellow-500 text-white hover:bg-yellow-400">
             <Download className="w-4 h-4 mr-2" />
             Fazer Backup Manual ({profiles.length} perfis)
           </Button>
 
-          <Button onClick={() => setShowHistory(true)} variant="outline" className="w-full">
+          <Button onClick={() => setShowHistory(true)} variant="outline" className="w-full border-slate-500 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white">
             <History className="w-4 h-4 mr-2" />
             Ver Histórico de Backups ({backupHistory.length})
           </Button>
 
           <div>
-            <Label htmlFor="restore" className="cursor-pointer">
-              <Button asChild className="w-full">
+            <Label htmlFor="restore" className="cursor-pointer text-slate-300">
+              <Button asChild className="w-full bg-yellow-500 text-white hover:bg-yellow-400">
                 <span>
                   <Upload className="w-4 h-4 mr-2" />
                   Restaurar de Backup
@@ -211,39 +213,39 @@ export const BackupManager = ({ profiles, onRestore }: BackupManagerProps) => {
 
 
       {showPreview && previewData && (
-        <Card className="border-blue-500">
+        <Card className="border-blue-400/40 bg-slate-900/75 text-slate-100">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-white">
+              <Users className="w-5 h-5 text-yellow-400" />
               Visualização do Backup
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="font-semibold">Data do Backup:</p>
-                <p>{new Date(previewData.timestamp).toLocaleString('pt-BR')}</p>
+                <p className="font-semibold text-slate-200">Data do Backup:</p>
+                <p className="text-slate-300">{new Date(previewData.timestamp).toLocaleString('pt-BR')}</p>
               </div>
               <div>
-                <p className="font-semibold">Total de Perfis:</p>
-                <p>{previewData.profileCount}</p>
+                <p className="font-semibold text-slate-200">Total de Perfis:</p>
+                <p className="text-slate-300">{previewData.profileCount}</p>
               </div>
             </div>
 
             <div className="max-h-60 overflow-y-auto space-y-2">
               {previewData.profiles.map((profile, idx) => (
-                <div key={idx} className="p-2 bg-gray-50 rounded text-sm">
-                  <p className="font-semibold">{profile.profileName}</p>
-                  <p className="text-gray-600">{profile.fullName} - {profile.birthDate}</p>
+                <div key={idx} className="p-2 bg-white/[0.04] rounded text-sm">
+                  <p className="font-semibold text-slate-100">{profile.profileName}</p>
+                  <p className="text-slate-300">{profile.fullName} - {profile.birthDate}</p>
                 </div>
               ))}
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={handleRestore} className="flex-1">
+              <Button onClick={handleRestore} className="flex-1 bg-yellow-500 text-white hover:bg-yellow-400">
                 Confirmar Restauração
               </Button>
-              <Button variant="outline" onClick={() => setShowPreview(false)} className="flex-1">
+              <Button variant="outline" onClick={() => setShowPreview(false)} className="flex-1 border-slate-500 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white">
                 Cancelar
               </Button>
             </div>

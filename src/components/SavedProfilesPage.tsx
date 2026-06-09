@@ -176,14 +176,14 @@ export const SavedProfilesPage: React.FC = () => {
 
     <div className="container mx-auto px-4 py-8 max-w-7xl text-slate-100">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2 text-white">Meus Perfis Salvos</h1>
-        <p className="text-slate-300">Gerencie e acesse seus cálculos numerológicos salvos</p>
+        <h1 className="text-4xl font-bold mb-2 text-white" style={{ color: '#ffffff' }}>Meus Perfis Salvos</h1>
+        <p className="text-slate-300" style={{ color: '#cbd5e1' }}>Gerencie e acesse seus cálculos numerológicos salvos</p>
       </div>
 
       <Tabs defaultValue="profiles" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2 mb-6 bg-slate-900/70 text-slate-300">
-          <TabsTrigger value="profiles" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-slate-950">Perfis</TabsTrigger>
-          <TabsTrigger value="backup" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-slate-950">
+          <TabsTrigger value="profiles" className="text-slate-300 data-[state=active]:bg-yellow-500 data-[state=active]:text-white">Perfis</TabsTrigger>
+          <TabsTrigger value="backup" className="text-slate-300 data-[state=active]:bg-yellow-500 data-[state=active]:text-white">
             <Shield className="w-4 h-4 mr-2" />
             Backup
           </TabsTrigger>
@@ -197,11 +197,11 @@ export const SavedProfilesPage: React.FC = () => {
                 placeholder="Buscar perfis..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-slate-950/70 border-slate-700 text-slate-100 placeholder:text-slate-400"
+                className="pl-10 bg-white border-slate-200 text-slate-900 placeholder:text-slate-500"
               />
             </div>
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-full md:w-48 bg-slate-950/70 border-slate-700 text-slate-100">
+              <SelectTrigger className="w-full md:w-48 bg-white border-slate-200 text-slate-900">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent className="bg-slate-950 border-slate-700 text-slate-100">
@@ -214,7 +214,7 @@ export const SavedProfilesPage: React.FC = () => {
             <Button
               variant={showFavoritesOnly ? 'default' : 'outline'}
               onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-              className={showFavoritesOnly ? 'bg-yellow-500 text-slate-950 hover:bg-yellow-400' : 'border-slate-600 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white'}
+              className={showFavoritesOnly ? 'bg-yellow-500 text-white hover:bg-yellow-400' : 'border-slate-600 bg-slate-900/40 text-slate-100 hover:bg-slate-800 hover:text-white'}
             >
               <Star className="w-4 h-4 mr-2" />
               Favoritos
@@ -224,12 +224,12 @@ export const SavedProfilesPage: React.FC = () => {
           {availableTags.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <Tag className="w-4 h-4 text-slate-400" />
-              <span className="text-sm text-slate-300">Filtrar por tags:</span>
+              <span className="text-sm text-slate-300" style={{ color: '#cbd5e1' }}>Filtrar por tags:</span>
               {availableTags.map(tag => (
                 <Badge
                   key={tag}
                   variant={selectedTags.includes(tag) ? 'default' : 'outline'}
-                  className={selectedTags.includes(tag) ? 'cursor-pointer bg-yellow-500 text-slate-950' : 'cursor-pointer border-slate-600 text-slate-200'}
+                  className={selectedTags.includes(tag) ? 'cursor-pointer border-yellow-500 bg-yellow-500 text-white' : 'cursor-pointer border-slate-400 text-slate-300 hover:bg-slate-800 hover:text-white'}
                   onClick={() => handleToggleTag(tag)}
                 >
                   {tag}
@@ -252,8 +252,8 @@ export const SavedProfilesPage: React.FC = () => {
           {filteredProfiles.length === 0 ? (
 
             <div className="text-center py-12 text-slate-300">
-              <p className="text-lg text-slate-100">Nenhum perfil encontrado</p>
-              <p className="text-sm mt-2 text-slate-400">Salve seus cálculos para acessá-los rapidamente depois</p>
+              <p className="text-lg text-slate-100" style={{ color: '#f1f5f9' }}>Nenhum perfil encontrado</p>
+              <p className="text-sm mt-2 text-slate-400" style={{ color: '#94a3b8' }}>Salve seus cálculos para acessá-los rapidamente depois</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
@@ -274,7 +274,7 @@ export const SavedProfilesPage: React.FC = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="backup">
+        <TabsContent value="backup" className="text-slate-100">
           <BackupManager profiles={profiles} onRestore={handleRestoreBackup} />
         </TabsContent>
       </Tabs>
