@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, Upload, Search, Star, Trash2, Shield, Tag } from 'lucide-react';
+import { Download, Search, Star, Trash2, Shield, Tag } from 'lucide-react';
 import { ProfileCard } from './ProfileCard';
 import { ExportImportModal } from './ExportImportModal';
 import { EditProfileModal } from './EditProfileModal';
@@ -14,6 +14,7 @@ import { saveSharedProfile, generateShareUrl, generateQRCodeUrl } from '@/utils/
 import { useAppContext } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { generateProfilePDF } from '@/utils/profilePdfGenerator';
 
 
 
@@ -39,7 +40,8 @@ export const SavedProfilesPage: React.FC = () => {
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [editingProfile, setEditingProfile] = useState<SavedProfile | null>(null);
   const [sharingProfile, setSharingProfile] = useState<{ profile: SavedProfile; shareUrl: string; qrCodeUrl: string } | null>(null);
-  const { setNumerologyState } = useAppContext();
+  const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
+  const { setBirthDate, setNumerologyState, setPersonalYearState, setCompatibilityState } = useAppContext();
   const { toast } = useToast();
 
 
@@ -60,8 +62,8 @@ export const SavedProfilesPage: React.FC = () => {
 
     if (searchTerm) {
       filtered = filtered.filter(p =>
-        p.profileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.name.toLowerCase().includes(searchTerm.toLowerCase())
+        (p.profileName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.name || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -87,13 +89,44 @@ export const SavedProfilesPage: React.FC = () => {
     if (profile.type === 'numerology') {
       setNumerologyState({
         results: profile.results,
-        userData: { name: profile.name, birthDate: profile.birthDate },
-        lifeCycles: profile.data.lifeCycles,
-        challenges: profile.data.challenges,
-        presents: profile.data.presents || [],
+        userData: { name: profile.name, birthDate: profile.birthDate, phone: profile.phone, email: profile.email },
+        lifeCycles: profile.data?.lifeCycles || null,
+        challenges: profile.data?.challenges || null,
+        presents: profile.data?.presents || [],
       });
-      toast({ title: 'Perfil carregado', description: `${profile.profileName} foi carregado com sucesso! Vá para a aba "Mapa Numerológico" para ver os resultados.` });
+      setBirthDate(profile.birthDate);
+      toast({ title: 'Perfil carregado', description: `${profile.profileName} foi carregado. Abra a aba Mapa da Alma para ver os resultados.` });
+      return;
     }
+
+    if (profile.type === 'personalYear') {
+      const data = profile.data || {};
+      setBirthDate(profile.birthDate);
+      setPersonalYearState({
+        day: String(data.day || ''),
+        month: String(data.month || ''),
+        birthMonth: Number(data.birthMonth || data.month || 0),
+        personalYear: Number(data.personalYear || data.year || 0) || null,
+        showResults: Boolean(data.personalYear || data.year),
+      });
+      toast({ title: 'Perfil carregado', description: `${profile.profileName} foi carregado. Abra a aba Ano Pessoal para ver os resultados.` });
+      return;
+    }
+
+    if (profile.type === 'compatibility') {
+      setCompatibilityState({
+        result: profile.results || profile.data || null,
+        relationshipType: profile.data?.relationshipType || 'romantic',
+      });
+      toast({ title: 'Perfil carregado', description: `${profile.profileName} foi carregado para compatibilidade.` });
+      return;
+    }
+
+    toast({
+      title: 'Perfil não carregado',
+      description: 'Este tipo de perfil não possui uma visualização operacional disponível.',
+      variant: 'destructive',
+    });
   };
 
 
@@ -147,6 +180,25 @@ export const SavedProfilesPage: React.FC = () => {
     const qrCodeUrl = generateQRCodeUrl(shareUrl);
     setSharingProfile({ profile, shareUrl, qrCodeUrl });
     toast({ title: 'Link gerado!', description: 'Compartilhe seu perfil com outras pessoas.' });
+  };
+
+  const handleGenerateProfilePdf = async (profile: SavedProfile) => {
+    setGeneratingPdfId(profile.id);
+    try {
+      const result = await generateProfilePDF(profile);
+      toast({
+        title: 'PDF gerado',
+        description: `${result.fileName} foi baixado.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Não foi possível gerar o PDF',
+        description: error instanceof Error ? error.message : 'Verifique os dados do perfil e tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setGeneratingPdfId(null);
+    }
   };
 
   const availableTags = getAvailableTags();
@@ -254,6 +306,8 @@ export const SavedProfilesPage: React.FC = () => {
                   onToggleFavorite={handleToggleFavorite}
                   onEdit={handleEditProfile}
                   onShare={handleShareProfile}
+                  onGeneratePdf={handleGenerateProfilePdf}
+                  isGeneratingPdf={generatingPdfId === profile.id}
                 />
 
               ))}

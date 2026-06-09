@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, Trash2, Calendar, Clock, FileText, Edit, Share2 } from 'lucide-react';
+import { Star, Trash2, Calendar, Clock, FileText, Edit, Share2, Download } from 'lucide-react';
 
 import { SavedProfile } from '@/utils/profileStorage';
 import { format } from 'date-fns';
@@ -15,7 +15,9 @@ interface ProfileCardProps {
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string) => void;
   onEdit: (profile: SavedProfile) => void;
+  onGeneratePdf: (profile: SavedProfile) => void;
   onShare?: (profile: SavedProfile) => void;
+  isGeneratingPdf?: boolean;
 }
 
 export const ProfileCard: React.FC<ProfileCardProps> = ({
@@ -24,7 +26,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   onDelete,
   onToggleFavorite,
   onEdit,
+  onGeneratePdf,
   onShare,
+  isGeneratingPdf = false,
 }) => {
 
   const typeLabels = {
@@ -86,6 +90,15 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             <Share2 className="w-4 h-4" />
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onGeneratePdf(profile)}
+          disabled={isGeneratingPdf}
+          title="Gerar PDF do perfil"
+        >
+          <Download className="w-4 h-4" />
+        </Button>
         <Button variant="outline" size="icon" onClick={() => onEdit(profile)}>
           <Edit className="w-4 h-4" />
         </Button>

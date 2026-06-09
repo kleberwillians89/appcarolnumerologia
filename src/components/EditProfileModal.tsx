@@ -8,6 +8,7 @@ import { SavedProfile } from '@/utils/profileStorage';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { TagInput } from './TagInput';
+import { formatBrazilianPhone, isValidBrazilianPhone } from '@/utils/phoneUtils';
 
 interface EditProfileModalProps {
   open: boolean;
@@ -25,6 +26,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [profileName, setProfileName] = useState('');
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -35,6 +38,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       setProfileName(profile.profileName);
       setName(profile.name);
       setBirthDate(profile.birthDate);
+      setPhone(formatBrazilianPhone(profile.phone || ''));
+      setEmail(profile.email || '');
       setNotes(profile.notes || '');
       setSelectedTags(profile.tags || []);
       setErrors({});
@@ -44,9 +49,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
 
   const validateDate = (date: string): boolean => {
-    const regex = /^\d{2}\/\d{2}\/\d{4}$/;
-    if (!regex.test(date)) return false;
-    const [day, month, year] = date.split('/').map(Number);
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (!match) return false;
+    const [, yearText, monthText, dayText] = match;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
     if (month < 1 || month > 12) return false;
     if (day < 1 || day > 31) return false;
     if (year < 1900 || year > new Date().getFullYear()) return false;
@@ -67,7 +75,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     if (!birthDate.trim()) {
       newErrors.birthDate = 'Data de nascimento é obrigatória';
     } else if (!validateDate(birthDate)) {
-      newErrors.birthDate = 'Data inválida (use DD/MM/AAAA)';
+      newErrors.birthDate = 'Data inválida';
+    }
+
+    if (phone.trim() && !isValidBrazilianPhone(phone)) {
+      newErrors.phone = 'Telefone/WhatsApp inválido';
     }
     
     setErrors(newErrors);
@@ -85,6 +97,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         profileName: profileName.trim(),
         name: name.trim(),
         birthDate: birthDate.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
         notes: notes.trim(),
         tags: selectedTags,
       });
@@ -139,15 +153,39 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               <Label htmlFor="birthDate">Data de Nascimento *</Label>
               <Input
                 id="birthDate"
+                type="date"
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
-                placeholder="DD/MM/AAAA"
               />
               {errors.birthDate && (
                 <p className="text-sm text-red-500">{errors.birthDate}</p>
               )}
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefone / WhatsApp</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(formatBrazilianPhone(e.target.value))}
+                placeholder="(11) 99999-9999"
+              />
+              {errors.phone && (
+                <p className="text-sm text-red-500">{errors.phone}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="cliente@email.com"
+              />
+            </div>
 
             <TagInput selectedTags={selectedTags} onChange={setSelectedTags} />
 
