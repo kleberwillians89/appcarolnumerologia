@@ -10,10 +10,9 @@ import { DEV_MODE } from '@/config/devMode';
 import { SettingsPage } from './SettingsPage';
 import { AcquisitionPage } from './AcquisitionPage';
 import { DeliveriesPage } from './DeliveriesPage';
-import { CustomerPortal } from './CustomerPortal';
 
 
-type AppTab = 'numerology' | 'personalYear' | 'profiles' | 'deliveries' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
+export type AppTab = 'numerology' | 'personalYear' | 'profiles' | 'deliveries' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
 
 const productionTabs: Array<{ id: AppTab; label: string }> = [
   { id: 'numerology', label: 'Mapa da Alma' },
@@ -35,17 +34,19 @@ const navTabs = [...productionTabs, ...devTabs];
 
 
 
-const AppLayout: React.FC = () => {
+interface AppLayoutProps {
+  initialTab?: AppTab;
+}
+
+const AppLayout: React.FC<AppLayoutProps> = ({ initialTab = 'deliveries' }) => {
   const {
     user,
     profile,
-    isAdmin,
-    isCliente,
     loading,
     logout,
   } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<AppTab>('numerology');
+  const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
 
   const handleLogout = async () => {
     const logoutPromise = logout();
@@ -59,10 +60,6 @@ const AppLayout: React.FC = () => {
         Carregando plataforma...
       </div>
     );
-  }
-
-  if (isCliente && !isAdmin) {
-    return <CustomerPortal />;
   }
 
   return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-gray-900 relative overflow-hidden">
