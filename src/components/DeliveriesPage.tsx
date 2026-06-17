@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Eye, FileText, Mail, MessageCircle, Phone, Send } from 'lucide-react';
+import { AlertTriangle, Calendar, CheckCircle2, Clock3, Eye, FileText, Mail, MessageCircle, Phone, Search, Send, Users, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Delivery, DeliveryStatus, deliveryService, getProductLabel, isValidUuid } from '@/services/deliveryService';
@@ -92,6 +94,13 @@ export const DeliveriesPage: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<string | null>(null);
   const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<DeliveryStatus | 'todos'>('todos');
+  const [productFilter, setProductFilter] = useState<'todos' | 'mapa' | 'ano_pessoal'>('todos');
+  const [originFilter, setOriginFilter] = useState<'todos' | Delivery['origem']>('todos');
+  const [editingNotes, setEditingNotes] = useState('');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [quickStatusId, setQuickStatusId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const loadDeliveries = async () => {
@@ -119,7 +128,7 @@ export const DeliveriesPage: React.FC = () => {
   }, []);
 
   const totals = useMemo(() => {
-    return deliveries.reduce(
+    const statusTotals = deliveries.reduce(
       (acc, delivery) => {
         acc[delivery.status] += 1;
         return acc;
@@ -133,7 +142,41 @@ export const DeliveriesPage: React.FC = () => {
         PDF_ENVIADO: 0,
       } as Record<DeliveryStatus, number>
     );
+
+    const totalClientes = new Set(
+      deliveries.map((delivery) => delivery.userId || delivery.email || delivery.telefoneNormalizado || delivery.telefone || delivery.nome)
+    ).size;
+
+    return {
+      ...statusTotals,
+      pendentes: statusTotals.DADOS_RECEBIDOS + statusTotals.AGUARDANDO_DADOS + statusTotals.PRONTO_PARA_GERAR_PDF + statusTotals.AGUARDANDO_ANALISE,
+      concluidas: statusTotals.PDF_GERADO + statusTotals.PDF_ENVIADO,
+      totalClientes,
+    };
   }, [deliveries]);
+
+  const filteredDeliveries = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return deliveries.filter((delivery) => {
+      const matchesSearch = !normalizedSearch || [
+        delivery.nome,
+        delivery.email,
+        delivery.telefone,
+        delivery.telefoneNormalizado,
+        getProductLabel(delivery.produto),
+        statusLabel[delivery.status],
+        delivery.observacoesCliente,
+        delivery.observacoesCarol,
+      ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
+
+      const matchesStatus = statusFilter === 'todos' || delivery.status === statusFilter;
+      const matchesProduct = productFilter === 'todos' || delivery.produto === productFilter;
+      const matchesOrigin = originFilter === 'todos' || delivery.origem === originFilter;
+
+      return matchesSearch && matchesStatus && matchesProduct && matchesOrigin;
+    });
+  }, [deliveries, originFilter, productFilter, searchTerm, statusFilter]);
 
   const handleGeneratePdf = async (delivery: Delivery) => {
     setIsGenerating(delivery.id);
@@ -265,6 +308,63 @@ export const DeliveriesPage: React.FC = () => {
     }
   };
 
+  const handleQuickPdfStatus = async (delivery: Delivery) => {
+    setQuickStatusId(delivery.id);
+    try {
+      await deliveryService.updateDeliveryStatus(delivery.id, 'PDF_GERADO');
+      await loadDeliveries();
+      toast({
+        title: 'PDF marcado como gerado',
+        description: `${delivery.nome} saiu da fila pendente.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Não foi possível atualizar',
+        description: error instanceof Error ? error.message : 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setQuickStatusId(null);
+    }
+  };
+
+  const openDetailsModal = (delivery: Delivery) => {
+    setSelectedDelivery(delivery);
+    setEditingNotes(delivery.observacoesCarol || '');
+  };
+
+  const handleSaveNotes = async () => {
+    if (!selectedDelivery) return;
+
+    setIsSavingNotes(true);
+    try {
+      const updated = await deliveryService.updateDelivery(selectedDelivery.id, {
+        observacoesCarol: editingNotes,
+      });
+      setSelectedDelivery(updated);
+      await loadDeliveries();
+      toast({
+        title: 'Observações salvas',
+        description: `Histórico interno de ${updated.nome} foi atualizado.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Não foi possível salvar',
+        description: error instanceof Error ? error.message : 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('todos');
+    setProductFilter('todos');
+    setOriginFilter('todos');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -276,28 +376,91 @@ export const DeliveriesPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
-            <p className="text-xl font-bold text-white">{totals.DADOS_RECEBIDOS + totals.AGUARDANDO_DADOS + totals.PRONTO_PARA_GERAR_PDF + totals.AGUARDANDO_ANALISE}</p>
-            <p className="text-xs text-slate-300">Fila</p>
+        <Button variant="outline" className={`${premiumClasses.secondaryButton} w-full md:w-auto`} onClick={loadDeliveries}>
+          Atualizar fila
+        </Button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-yellow-500/20 bg-slate-900/75 p-4 text-white">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-300">Pendentes</p>
+            <Clock3 className="h-5 w-5 text-yellow-400" />
           </div>
-          <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
-            <p className="text-xl font-bold text-white">{totals.PDF_GERADO}</p>
-            <p className="text-xs text-slate-300">PDFs</p>
+          <p className="mt-2 text-3xl font-bold">{totals.pendentes}</p>
+        </div>
+        <div className="rounded-lg border border-emerald-500/20 bg-slate-900/75 p-4 text-white">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-300">Concluídas</p>
+            <CheckCircle2 className="h-5 w-5 text-emerald-300" />
           </div>
-          <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
-            <p className="text-xl font-bold text-white">{totals.PDF_ENVIADO}</p>
-            <p className="text-xs text-slate-300">Enviadas</p>
+          <p className="mt-2 text-3xl font-bold">{totals.concluidas}</p>
+        </div>
+        <div className="rounded-lg border border-cyan-500/20 bg-slate-900/75 p-4 text-white">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-300">Total de clientes</p>
+            <Users className="h-5 w-5 text-cyan-300" />
           </div>
+          <p className="mt-2 text-3xl font-bold">{totals.totalClientes}</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 p-4">
+        <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por nome, contato, status ou observação"
+              className={`${premiumClasses.input} pl-9`}
+            />
+          </div>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as DeliveryStatus | 'todos')} className={premiumClasses.select}>
+            <option value="todos">Todos os status</option>
+            {statusOptions.map((status) => (
+              <option key={status} value={status}>{statusLabel[status]}</option>
+            ))}
+          </select>
+          <select value={productFilter} onChange={(event) => setProductFilter(event.target.value as 'todos' | 'mapa' | 'ano_pessoal')} className={premiumClasses.select}>
+            <option value="todos">Todos os produtos</option>
+            <option value="mapa">Mapa da Alma</option>
+            <option value="ano_pessoal">Ano Pessoal</option>
+          </select>
+          <select value={originFilter} onChange={(event) => setOriginFilter(event.target.value as 'todos' | Delivery['origem'])} className={premiumClasses.select}>
+            <option value="todos">Todas as origens</option>
+            <option value="plataforma">Plataforma</option>
+            <option value="site">Site</option>
+            <option value="google_sheets">Google Sheets</option>
+            <option value="mock">Mock/local</option>
+          </select>
+          <Button variant="outline" className={premiumClasses.secondaryButton} onClick={clearFilters}>
+            Limpar
+          </Button>
         </div>
       </div>
 
       <div className="grid gap-3">
         {isLoadingDeliveries ? (
+          <div className="grid gap-3">
+            {[0, 1, 2].map((item) => (
+              <Card key={item} className="border border-yellow-500/20 bg-slate-900/70 text-white">
+                <CardContent className="space-y-3 py-6">
+                  <Skeleton className="h-5 w-48 bg-white/10" />
+                  <Skeleton className="h-4 w-full max-w-lg bg-white/10" />
+                  <Skeleton className="h-10 w-full bg-white/10" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : filteredDeliveries.length === 0 ? (
           <Card className="border border-yellow-500/20 bg-slate-900/70 text-white">
-            <CardContent className="py-8 text-slate-200">Carregando entregas...</CardContent>
+            <CardContent className="flex flex-col gap-3 py-8 text-slate-200">
+              <AlertTriangle className="h-6 w-6 text-yellow-400" />
+              Nenhuma entrega encontrada para os filtros atuais.
+            </CardContent>
           </Card>
-        ) : deliveries.map((delivery) => (
+        ) : filteredDeliveries.map((delivery) => (
           <Card key={delivery.id} className="overflow-hidden border border-yellow-500/20 bg-slate-900/75 text-white shadow-lg shadow-black/10">
             <CardHeader className="border-b border-white/10 pb-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -314,9 +477,19 @@ export const DeliveriesPage: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
-                  <Button variant="outline" className={premiumClasses.secondaryButton} onClick={() => setSelectedDelivery(delivery)}>
+                  <Button variant="outline" className={premiumClasses.secondaryButton} onClick={() => openDetailsModal(delivery)}>
                     <Eye className="mr-2 h-4 w-4" />
                     Ver dados
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className={premiumClasses.secondaryButton}
+                    onClick={() => handleQuickPdfStatus(delivery)}
+                    disabled={delivery.status === 'PDF_GERADO' || delivery.status === 'PDF_ENVIADO' || quickStatusId === delivery.id}
+                    title="Muda apenas o status operacional para PDF gerado."
+                  >
+                    <Zap className="mr-2 h-4 w-4" />
+                    {quickStatusId === delivery.id ? 'Atualizando...' : 'PDF_GERADO'}
                   </Button>
                   <Button
                     className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-700 disabled:text-slate-300"
@@ -397,7 +570,7 @@ export const DeliveriesPage: React.FC = () => {
                 <div><p className="text-[#F8F5EF]/65">Email</p><p className="font-medium">{selectedDelivery.email || 'Não informado'}</p></div>
                 <div><p className="text-[#F8F5EF]/65">Nascimento</p><p className="font-medium">{formatDate(selectedDelivery.dataNascimento)}</p></div>
                 <div><p className="text-[#F8F5EF]/65">Origem</p><p className="font-medium">{selectedDelivery.origem}</p></div>
-                <div><p className="text-[#F8F5EF]/65">Criacao</p><p className="font-medium">{formatDateTime(selectedDelivery.dataCriacao)}</p></div>
+                <div><p className="text-[#F8F5EF]/65">Criação</p><p className="font-medium">{formatDateTime(selectedDelivery.dataCriacao)}</p></div>
                 <div><p className="text-[#F8F5EF]/65">Envio</p><p className="font-medium">{formatDateTime(selectedDelivery.dataEnvio)}</p></div>
               </div>
               <div>
@@ -410,10 +583,25 @@ export const DeliveriesPage: React.FC = () => {
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div><p className="text-[#F8F5EF]/65">Observações do cliente</p><p>{selectedDelivery.observacoesCliente || '-'}</p></div>
-                <div><p className="text-[#F8F5EF]/65">Observações internas</p><p>{selectedDelivery.observacoesCarol || '-'}</p></div>
+                <div className="space-y-2">
+                  <Label htmlFor="internal-notes" className="text-[#F8F5EF]/65">Observações internas</Label>
+                  <Textarea
+                    id="internal-notes"
+                    value={editingNotes}
+                    onChange={(event) => setEditingNotes(event.target.value)}
+                    className={`min-h-28 ${premiumClasses.textarea}`}
+                    placeholder="Anote decisões, ajustes de entrega ou contexto do atendimento."
+                  />
+                </div>
               </div>
             </div>
           )}
+          <DialogFooter>
+            <Button variant="outline" className={premiumClasses.secondaryButton} onClick={() => setSelectedDelivery(null)}>Fechar</Button>
+            <Button className={premiumClasses.primaryButton} onClick={handleSaveNotes} disabled={isSavingNotes}>
+              {isSavingNotes ? 'Salvando...' : 'Salvar observações'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -9,14 +9,17 @@ import QuarterCycleTestPanel from './QuarterCycleTestPanel';
 import { DEV_MODE } from '@/config/devMode';
 import { SettingsPage } from './SettingsPage';
 import { AcquisitionPage } from './AcquisitionPage';
+import { DeliveriesPage } from './DeliveriesPage';
+import { CustomerPortal } from './CustomerPortal';
 
 
-type AppTab = 'numerology' | 'personalYear' | 'profiles' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
+type AppTab = 'numerology' | 'personalYear' | 'profiles' | 'deliveries' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
 
 const productionTabs: Array<{ id: AppTab; label: string }> = [
   { id: 'numerology', label: 'Mapa da Alma' },
   { id: 'personalYear', label: 'Ano Pessoal' },
   { id: 'profiles', label: 'Perfis' },
+  { id: 'deliveries', label: 'Entregas' },
   { id: 'acquisition', label: 'Aquisição' },
   { id: 'settings', label: 'Configurações' },
 ];
@@ -36,6 +39,8 @@ const AppLayout: React.FC = () => {
   const {
     user,
     profile,
+    isAdmin,
+    isCliente,
     loading,
     logout,
   } = useAuth();
@@ -54,6 +59,10 @@ const AppLayout: React.FC = () => {
         Carregando plataforma...
       </div>
     );
+  }
+
+  if (isCliente && !isAdmin) {
+    return <CustomerPortal />;
   }
 
   return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-gray-900 relative overflow-hidden">
@@ -105,6 +114,8 @@ const AppLayout: React.FC = () => {
             <SettingsPage />
           ) : activeTab === 'profiles' ? (
             <SavedProfilesPage />
+          ) : activeTab === 'deliveries' ? (
+            <DeliveriesPage />
           ) : activeTab === 'acquisition' ? (
             <AcquisitionPage />
           ) : activeTab === 'compatibility' ? (
