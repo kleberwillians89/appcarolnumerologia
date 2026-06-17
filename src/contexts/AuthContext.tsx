@@ -149,6 +149,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return mapped;
   }, []);
 
+  const loadProfileInBackground = useCallback((authUser: User) => {
+    if (!supabase || !hasSupabaseConfig) return;
+
+    setProfile((current) => current || createFallbackProfile(authUser, 'cliente'));
+    loadProfileForUser(authUser).catch((error) => {
+      authWarn('profile load error', error);
+      setAuthError(error instanceof Error ? error.message : 'Não foi possível carregar o perfil.');
+      setProfile(createFallbackProfile(authUser, 'cliente'));
+    });
+  }, [loadProfileForUser]);
+
   const refreshProfile = useCallback(async () => {
     if (!supabase || !hasSupabaseConfig) {
       if (DEV_MODE && user) {
@@ -232,7 +243,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         authLog('getSession success');
         setUser(authUser);
-        await loadProfileForUser(authUser);
+        setProfile(createFallbackProfile(authUser, 'cliente'));
+        loadProfileInBackground(authUser);
       } catch (error) {
         if (!mounted || initFinished) return;
         authWarn('getSession error', error);
@@ -250,16 +262,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: listener } = supabase?.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       authLog('auth state changed', _event);
-      if (_event === 'INITIAL_SESSION') return;
 
-      void (async () => {
-        try {
+      try {
         const authUser = session?.user || null;
-        setLoading(true);
         setUser(authUser);
+        setLoading(false);
 
         if (authUser) {
-          await loadProfileForUser(authUser);
+          setProfile(createFallbackProfile(authUser, 'cliente'));
+          loadProfileInBackground(authUser);
         } else {
           setProfile(null);
         }
@@ -269,10 +280,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthError(error instanceof Error ? error.message : 'Não foi possível atualizar a sessão.');
         setUser(null);
         setProfile(null);
-      } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
-      })();
     }) || { data: null };
 
     return () => {
@@ -280,11 +289,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(timeoutId);
       listener?.subscription?.unsubscribe();
     };
-  }, [loadProfileForUser]);
+  }, [loadProfileInBackground]);
 
   const signIn = async (email: string, password: string) => {
     setAuthError(null);
-    setLoading(true);
+    setLoading(false);
 
     if (!supabase || !hasSupabaseConfig) {
       if (DEV_MODE) {
@@ -311,9 +320,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (data.user) {
         setUser(data.user);
-        await loadProfileForUser(data.user);
+        setProfile(createFallbackProfile(data.user, 'cliente'));
+        setLoading(false);
+        loadProfileInBackground(data.user);
       }
-      setLoading(false);
       return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Não foi possível autenticar.';
@@ -325,7 +335,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, metadata: Record<string, any> = {}) => {
     setAuthError(null);
-    setLoading(true);
+    setLoading(false);
 
     if (!supabase || !hasSupabaseConfig) {
       const error = 'Supabase não configurado. Configure o .env.local antes de criar acessos.';
@@ -361,8 +371,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       setUser(data.user);
-      await loadProfileForUser(data.user);
+      setProfile(createFallbackProfile(data.user, metadata.role === 'admin' ? 'admin' : 'cliente'));
       setLoading(false);
+      loadProfileInBackground(data.user);
     } else {
       setAuthError('Verifique seu e-mail para confirmar o acesso.');
       setLoading(false);
@@ -416,7 +427,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout: signOut,
       isAuthenticated: Boolean(user),
     };
-  }, [user, profile, loading, authError, signIn, signUp, refreshProfile, login]);
+  }, [user, profile, loading, authError, loadProfileForUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

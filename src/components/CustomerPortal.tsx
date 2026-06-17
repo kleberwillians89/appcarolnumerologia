@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Calendar, Download, FileText, Loader2, MessageCircle, Phone, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,9 +14,6 @@ import { sendLeadToGoogleSheets } from '@/services/googleSheetsService';
 import { formatBrazilianPhone, isValidBrazilianPhone, normalizeBrazilianPhone } from '@/utils/phoneUtils';
 import { premiumClasses } from '@/config/premiumClasses';
 import { WHATSAPP_URL } from '@/config/links';
-import { ClientProgressStepper } from './ClientProgressStepper';
-import { CustomerPortalSkeleton } from './CustomerPortalSkeleton';
-import { CustomerFormErrors, hasCustomerFormErrors, validateCustomerForm } from '@/utils/customerValidation';
 
 const statusLabel: Record<string, string> = {
   DADOS_RECEBIDOS: 'Dados recebidos',
@@ -48,14 +45,8 @@ export const CustomerPortal: React.FC = () => {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<'mapa' | 'ano_pessoal'>('mapa');
-  const [formErrors, setFormErrors] = useState<CustomerFormErrors>({});
 
   const userId = user?.id || '';
-  const welcomeName = useMemo(() => {
-    const source = form.nome || profile?.full_name || profile?.name || user?.email || 'cliente';
-    return source.split(' ')[0];
-  }, [form.nome, profile?.full_name, profile?.name, user?.email]);
-  const latestDelivery = deliveries[0] || null;
   const activeDelivery = deliveries.find((delivery) =>
     delivery.status === 'AGUARDANDO_DADOS' ||
     !delivery.nome ||
@@ -119,12 +110,20 @@ export const CustomerPortal: React.FC = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    const validationErrors = validateCustomerForm(form);
-    setFormErrors(validationErrors);
-    if (hasCustomerFormErrors(validationErrors)) {
+    if (!form.nome.trim()) {
+      toast({ title: 'Nome obrigatório', description: 'Informe seu nome completo.', variant: 'destructive' });
+      return;
+    }
+
+    if (!form.dataNascimento) {
+      toast({ title: 'Data obrigatória', description: 'Informe sua data de nascimento.', variant: 'destructive' });
+      return;
+    }
+
+    if (!form.telefone.trim() || !isValidBrazilianPhone(form.telefone)) {
       toast({
-        title: 'Revise os dados',
-        description: 'Corrija os campos destacados antes de salvar.',
+        title: 'Telefone obrigatório',
+        description: 'Informe o telefone/WhatsApp do cliente para criar a entrega.',
         variant: 'destructive',
       });
       return;
@@ -196,7 +195,6 @@ export const CustomerPortal: React.FC = () => {
       });
       setLastSavedAt(new Date().toISOString());
       setShowForm(false);
-      setFormErrors({});
       setForm({ ...initialForm, nome: form.nome, email: form.email });
     } catch (error) {
       toast({
@@ -320,21 +318,6 @@ export const CustomerPortal: React.FC = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-6">
-        <Card className={premiumClasses.card}>
-          <CardHeader className="space-y-3">
-            <p className="text-[#C9A96E] text-xs font-semibold tracking-[0.24em]">EXPERIÊNCIA PREMIUM</p>
-            <CardTitle className="text-2xl text-white sm:text-3xl">Olá, {welcomeName}</CardTitle>
-            <p className={premiumClasses.muted}>
-              Acompanhe sua leitura do envio dos dados até o PDF final em uma área simples, segura e pensada para celular.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ClientProgressStepper delivery={latestDelivery} />
-          </CardContent>
-        </Card>
-
-        {loading && <CustomerPortalSkeleton />}
-
         {!loading && deliveries.length === 0 && !shouldShowForm && (
           <Card className={premiumClasses.card}>
             <CardHeader>
@@ -389,62 +372,26 @@ export const CustomerPortal: React.FC = () => {
               <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label htmlFor="customer-name" className={premiumClasses.label}>Nome completo</Label>
-                <Input
-                  id="customer-name"
-                  value={form.nome}
-                  onChange={(e) => {
-                    setForm({ ...form, nome: e.target.value });
-                    if (formErrors.nome) setFormErrors((current) => ({ ...current, nome: undefined }));
-                  }}
-                  className={premiumClasses.input}
-                  aria-invalid={Boolean(formErrors.nome)}
-                />
-                {formErrors.nome && <p className="mt-1 text-sm text-red-300">{formErrors.nome}</p>}
+                <Input id="customer-name" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className={premiumClasses.input} required />
               </div>
               <div>
                 <Label htmlFor="customer-phone" className={premiumClasses.label}>Telefone / WhatsApp</Label>
                 <Input
                   id="customer-phone"
                   value={form.telefone}
-                  onChange={(e) => {
-                    setForm({ ...form, telefone: formatBrazilianPhone(e.target.value) });
-                    if (formErrors.telefone) setFormErrors((current) => ({ ...current, telefone: undefined }));
-                  }}
+                  onChange={(e) => setForm({ ...form, telefone: formatBrazilianPhone(e.target.value) })}
                   placeholder="(11) 99999-9999"
                   className={premiumClasses.input}
-                  aria-invalid={Boolean(formErrors.telefone)}
+                  required
                 />
-                {formErrors.telefone && <p className="mt-1 text-sm text-red-300">{formErrors.telefone}</p>}
               </div>
               <div>
                 <Label htmlFor="customer-email" className={premiumClasses.label}>E-mail (opcional)</Label>
-                <Input
-                  id="customer-email"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => {
-                    setForm({ ...form, email: e.target.value });
-                    if (formErrors.email) setFormErrors((current) => ({ ...current, email: undefined }));
-                  }}
-                  className={premiumClasses.input}
-                  aria-invalid={Boolean(formErrors.email)}
-                />
-                {formErrors.email && <p className="mt-1 text-sm text-red-300">{formErrors.email}</p>}
+                <Input id="customer-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={premiumClasses.input} />
               </div>
               <div>
                 <Label htmlFor="customer-birth" className={premiumClasses.label}>Data de nascimento</Label>
-                <Input
-                  id="customer-birth"
-                  type="date"
-                  value={form.dataNascimento}
-                  onChange={(e) => {
-                    setForm({ ...form, dataNascimento: e.target.value });
-                    if (formErrors.dataNascimento) setFormErrors((current) => ({ ...current, dataNascimento: undefined }));
-                  }}
-                  className={premiumClasses.input}
-                  aria-invalid={Boolean(formErrors.dataNascimento)}
-                />
-                {formErrors.dataNascimento && <p className="mt-1 text-sm text-red-300">{formErrors.dataNascimento}</p>}
+                <Input id="customer-birth" type="date" value={form.dataNascimento} onChange={(e) => setForm({ ...form, dataNascimento: e.target.value })} className={premiumClasses.input} required />
               </div>
               <div>
                 <Label htmlFor="customer-product" className={premiumClasses.label}>Produto</Label>
@@ -490,10 +437,9 @@ export const CustomerPortal: React.FC = () => {
             <div className="grid gap-4">
               {deliveries.map((delivery) => (
                 <Card key={delivery.id} className={premiumClasses.cardAlt}>
-                  <CardContent className="grid gap-4 py-5 md:grid-cols-[1fr_auto] md:items-center">
-                    <div className="min-w-0 space-y-3">
+                  <CardContent className="py-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
                       <h3 className="font-semibold text-white">{getProductLabel(delivery.produto)}</h3>
-                      <ClientProgressStepper delivery={delivery} compact />
                       <div className={`mt-2 flex flex-wrap gap-3 text-sm ${premiumClasses.muted}`}>
                         <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-[#C9A96E]" />{delivery.dataNascimento}</span>
                         <span className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-[#C9A96E]" />{formatBrazilianPhone(delivery.telefoneNormalizado || delivery.telefone)}</span>

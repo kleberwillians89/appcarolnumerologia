@@ -1,16 +1,12 @@
 
 import React from 'react';
-import AppLayout, { AppTab } from '@/components/AppLayout';
+import AppLayout from '@/components/AppLayout';
 import { AppProvider } from '@/contexts/AppContext';
 
-interface IndexProps {
-  initialTab?: AppTab;
-}
-
-const Index: React.FC<IndexProps> = ({ initialTab }) => {
+const Index: React.FC = () => {
   return (
     <AppProvider>
-      <AppLayout initialTab={initialTab} />
+      <AppLayout />
     </AppProvider>
   );
 };

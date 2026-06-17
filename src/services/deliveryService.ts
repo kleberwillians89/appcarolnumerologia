@@ -311,25 +311,6 @@ const hasActiveSupabaseSession = async () => {
   return Boolean(!error && data.session);
 };
 
-const hasAdminProfile = async () => {
-  if (shouldUseLocalFallback()) return false;
-  const { data: authData, error: authError } = await supabase!.auth.getUser();
-  if (authError || !authData.user) return false;
-
-  const { data, error } = await supabase!
-    .from('profiles')
-    .select('role')
-    .eq('user_id', authData.user.id)
-    .maybeSingle();
-
-  if (error) {
-    console.warn('[deliveryService] Nao foi possivel confirmar permissao admin', error.message);
-    return false;
-  }
-
-  return data?.role === 'admin';
-};
-
 const getInitialStatus = (payload: SiteLeadPayload): DeliveryStatus => {
   return 'PRONTO_PARA_GERAR_PDF';
 };
@@ -371,10 +352,6 @@ export const deliveryService = {
 
   async fetchDeliveriesForAdmin(): Promise<Delivery[]> {
     if (!(await hasActiveSupabaseSession())) return localDeliveryStore.listDeliveries();
-
-    if (!(await hasAdminProfile())) {
-      throw new Error('Acesso restrito a administradores.');
-    }
 
     const { data, error } = await supabase!
       .from('deliveries')

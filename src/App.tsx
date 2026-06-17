@@ -10,7 +10,6 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./components/LoginPage";
 import { SharedProfileView } from "./components/SharedProfileView";
-import { CustomerPortal } from "./components/CustomerPortal";
 
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
@@ -48,44 +47,8 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function RequireAdmin({ children }: { children: JSX.Element }) {
-  const { user, loading, isAdmin } = useAuth();
-  const location = useLocation();
-  const authTimedOut = useRouteAuthTimeout(loading);
-
-  if (loading && !authTimedOut) {
-    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando permissões...</div>;
-  }
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  if (!isAdmin) {
-    return <Navigate to="/portal" replace />;
-  }
-  return children;
-}
-
-function RoleRedirect() {
-  const { user, loading, isAdmin, isCliente } = useAuth();
-  const authTimedOut = useRouteAuthTimeout(loading);
-
-  if (loading && !authTimedOut) {
-    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando permissões...</div>;
-  }
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-  if (isAdmin) {
-    return <Navigate to="/entregas" replace />;
-  }
-  if (isCliente) {
-    return <Navigate to="/portal" replace />;
-  }
-  return <Navigate to="/portal" replace />;
-}
-
 function RedirectIfAuthenticated({ children }: { children: JSX.Element }) {
-  const { user, loading, isAdmin, isCliente } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
   const authTimedOut = useRouteAuthTimeout(loading);
 
@@ -94,8 +57,7 @@ function RedirectIfAuthenticated({ children }: { children: JSX.Element }) {
   }
   if (user) {
     // se já está logado, não precisa ver /login
-    const requestedPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
-    const to = requestedPath || (isAdmin ? "/entregas" : isCliente ? "/portal" : "/");
+    const to = (location.state as any)?.from?.pathname || "/";
     return <Navigate to={to} replace />;
   }
   return children;
@@ -123,26 +85,15 @@ const App = () => (
               {/* App principal protegido */}
               <Route
                 path="/"
-                element={<RoleRedirect />}
-              />
-
-              <Route
-                path="/entregas"
-                element={
-                  <RequireAdmin>
-                    <Index initialTab="deliveries" />
-                  </RequireAdmin>
-                }
-              />
-
-              <Route
-                path="/portal"
                 element={
                   <RequireAuth>
-                    <CustomerPortal />
+                    <Index />
                   </RequireAuth>
                 }
               />
+
+              {/* Portal de cliente desativado temporariamente: o app abre no fluxo operacional. */}
+              <Route path="/portal" element={<Navigate to="/" replace />} />
 
               {/* Shared Profile View (Public) */}
               <Route path="/shared/:shareId" element={<SharedProfileView />} />
