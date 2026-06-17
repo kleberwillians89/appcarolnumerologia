@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Calendar, CheckCircle2, Clock3, Eye, FileText, Mail, MessageCircle, Phone, Search, Send, Users, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Delivery, DeliveryStatus, deliveryService, getProductLabel, isValidUuid } from '@/services/deliveryService';
@@ -440,9 +441,9 @@ export const DeliveriesPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid gap-3">
+      <div className="overflow-hidden rounded-lg border border-yellow-500/20 bg-slate-900/75 text-white shadow-lg shadow-black/10">
         {isLoadingDeliveries ? (
-          <div className="grid gap-3">
+          <div className="grid gap-3 p-4">
             {[0, 1, 2].map((item) => (
               <Card key={item} className="border border-yellow-500/20 bg-slate-900/70 text-white">
                 <CardContent className="space-y-3 py-6">
@@ -454,104 +455,120 @@ export const DeliveriesPage: React.FC = () => {
             ))}
           </div>
         ) : filteredDeliveries.length === 0 ? (
-          <Card className="border border-yellow-500/20 bg-slate-900/70 text-white">
-            <CardContent className="flex flex-col gap-3 py-8 text-slate-200">
+          <div className="flex flex-col gap-3 p-8 text-slate-200">
               <AlertTriangle className="h-6 w-6 text-yellow-400" />
               Nenhuma entrega encontrada para os filtros atuais.
-            </CardContent>
-          </Card>
-        ) : filteredDeliveries.map((delivery) => (
-          <Card key={delivery.id} className="overflow-hidden border border-yellow-500/20 bg-slate-900/75 text-white shadow-lg shadow-black/10">
-            <CardHeader className="border-b border-white/10 pb-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-xl leading-tight text-white">{delivery.nome}</CardTitle>
-                    <Badge className={statusClassName[delivery.status] || premiumClasses.badge}>{statusLabel[delivery.status]}</Badge>
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-200">
-                    <span className="flex items-center gap-1.5"><Phone className="h-4 w-4 text-yellow-400" />{getFormattedDeliveryPhone(delivery)}</span>
-                    {delivery.email && <span className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-yellow-400" />{delivery.email}</span>}
-                    <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4 text-yellow-400" />{formatDate(delivery.dataNascimento)}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
-                  <Button variant="outline" className={premiumClasses.secondaryButton} onClick={() => openDetailsModal(delivery)}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    Ver dados
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className={premiumClasses.secondaryButton}
-                    onClick={() => handleQuickPdfStatus(delivery)}
-                    disabled={delivery.status === 'PDF_GERADO' || delivery.status === 'PDF_ENVIADO' || quickStatusId === delivery.id}
-                    title="Muda apenas o status operacional para PDF gerado."
-                  >
-                    <Zap className="mr-2 h-4 w-4" />
-                    {quickStatusId === delivery.id ? 'Atualizando...' : 'PDF_GERADO'}
-                  </Button>
-                  <Button
-                    className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-700 disabled:text-slate-300"
-                    onClick={() => openWhatsAppModal(delivery)}
-                    disabled={!canSendWhatsApp(delivery)}
-                    title={!canSendWhatsApp(delivery) ? 'Para enviar WhatsApp, gere o PDF e informe o telefone do cliente.' : undefined}
-                  >
-                    <MessageCircle className="mr-2 h-4 w-4" />
-                    Enviar WhatsApp
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="space-y-4 pt-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                <div className="rounded-md bg-white/[0.04] p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Produto</p>
-                  <p className="mt-1 text-sm font-medium text-slate-50">{getProductLabel(delivery.produto)}</p>
-                </div>
-                <div className="rounded-md bg-white/[0.04] p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Status</p>
-                  <p className="mt-1 text-sm font-medium text-slate-50">{statusLabel[delivery.status]}</p>
-                </div>
-                <div className="rounded-md bg-white/[0.04] p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Criada em</p>
-                  <p className="mt-1 text-sm font-medium text-slate-50">{formatDateTime(delivery.dataCriacao)}</p>
-                </div>
-                <div className="rounded-md bg-white/[0.04] p-3 sm:col-span-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Arquivo/PDF</p>
-                  <p className="mt-1 truncate text-sm font-medium text-slate-50">{getPdfLabel(delivery)}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3 border-t border-white/10 pt-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="w-full max-w-sm">
-                  <Label htmlFor={`status-${delivery.id}`} className="text-xs font-medium text-slate-300">Atualizar status</Label>
-                  <select
-                    id={`status-${delivery.id}`}
-                    value={delivery.status}
-                    onChange={(event) => handleStatusChange(delivery, event.target.value as DeliveryStatus)}
-                    className={`mt-1 ${premiumClasses.select}`}
-                  >
-                    {statusOptions.map((status) => (
-                      <option key={status} value={status}>{statusLabel[status]}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {!hasDeliveryPdf(delivery) && (
-                  <Button className={`${premiumClasses.primaryButton} w-full sm:w-auto`} onClick={() => handleGeneratePdf(delivery)} disabled={isGenerating === delivery.id}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    {isGenerating === delivery.id ? 'Gerando...' : 'Gerar PDF'}
-                  </Button>
-                )}
-              </div>
-              {!canSendWhatsApp(delivery) && (
-                <p className="text-xs text-slate-300">Para enviar WhatsApp, gere o PDF e informe o telefone do cliente.</p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/10 hover:bg-transparent">
+                  <TableHead className="min-w-[220px] text-slate-300">Cliente</TableHead>
+                  <TableHead className="min-w-[180px] text-slate-300">Contato</TableHead>
+                  <TableHead className="min-w-[140px] text-slate-300">Produto</TableHead>
+                  <TableHead className="min-w-[170px] text-slate-300">Status</TableHead>
+                  <TableHead className="min-w-[150px] text-slate-300">Criada em</TableHead>
+                  <TableHead className="min-w-[180px] text-slate-300">PDF</TableHead>
+                  <TableHead className="min-w-[310px] text-right text-slate-300">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredDeliveries.map((delivery) => (
+                  <TableRow key={delivery.id} className="border-white/10 align-top hover:bg-white/[0.03]">
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p className="font-semibold text-white">{delivery.nome}</p>
+                        <p className="flex items-center gap-1.5 text-xs text-slate-300">
+                          <Calendar className="h-3.5 w-3.5 text-yellow-400" />
+                          {formatDate(delivery.dataNascimento)}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1 text-sm text-slate-200">
+                        <p className="flex items-center gap-1.5">
+                          <Phone className="h-3.5 w-3.5 text-yellow-400" />
+                          {getFormattedDeliveryPhone(delivery)}
+                        </p>
+                        <p className="flex items-center gap-1.5 break-all text-xs text-slate-300">
+                          <Mail className="h-3.5 w-3.5 text-yellow-400" />
+                          {delivery.email || 'E-mail pendente'}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-100">
+                      {getProductLabel(delivery.produto)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-2">
+                        <Badge className={statusClassName[delivery.status] || premiumClasses.badge}>
+                          {statusLabel[delivery.status]}
+                        </Badge>
+                        <select
+                          aria-label={`Atualizar status de ${delivery.nome}`}
+                          value={delivery.status}
+                          onChange={(event) => handleStatusChange(delivery, event.target.value as DeliveryStatus)}
+                          className={`${premiumClasses.select} h-9 min-w-[160px]`}
+                        >
+                          {statusOptions.map((status) => (
+                            <option key={status} value={status}>{statusLabel[status]}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-200">
+                      {formatDateTime(delivery.dataCriacao)}
+                    </TableCell>
+                    <TableCell>
+                      <p className="max-w-[180px] truncate text-sm text-slate-200" title={getPdfLabel(delivery)}>
+                        {getPdfLabel(delivery)}
+                      </p>
+                      {!canSendWhatsApp(delivery) && (
+                        <p className="mt-1 text-xs text-slate-400">WhatsApp bloqueado</p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button size="sm" variant="outline" className={premiumClasses.secondaryButton} onClick={() => openDetailsModal(delivery)}>
+                          <Eye className="mr-1.5 h-4 w-4" />
+                          Detalhes
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={premiumClasses.secondaryButton}
+                          onClick={() => handleQuickPdfStatus(delivery)}
+                          disabled={delivery.status === 'PDF_GERADO' || delivery.status === 'PDF_ENVIADO' || quickStatusId === delivery.id}
+                          title="Muda apenas o status operacional para PDF gerado."
+                        >
+                          <Zap className="mr-1.5 h-4 w-4" />
+                          {quickStatusId === delivery.id ? 'Atualizando...' : 'PDF_GERADO'}
+                        </Button>
+                        {!hasDeliveryPdf(delivery) && (
+                          <Button size="sm" className={premiumClasses.primaryButton} onClick={() => handleGeneratePdf(delivery)} disabled={isGenerating === delivery.id}>
+                            <FileText className="mr-1.5 h-4 w-4" />
+                            {isGenerating === delivery.id ? 'Gerando...' : 'Gerar PDF'}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-700 disabled:text-slate-300"
+                          onClick={() => openWhatsAppModal(delivery)}
+                          disabled={!canSendWhatsApp(delivery)}
+                          title={!canSendWhatsApp(delivery) ? 'Para enviar WhatsApp, gere o PDF e informe o telefone do cliente.' : undefined}
+                        >
+                          <MessageCircle className="mr-1.5 h-4 w-4" />
+                          WhatsApp
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       <Dialog open={!!selectedDelivery} onOpenChange={() => setSelectedDelivery(null)}>
