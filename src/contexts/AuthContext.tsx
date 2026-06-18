@@ -49,6 +49,7 @@ type AuthState = {
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AUTH_SAFETY_TIMEOUT_MS = 3000;
 
 const getUserDisplayName = (user: User | LegacyUser) => {
   if ('name' in user && user.name) return user.name;
@@ -64,17 +65,45 @@ const createProfile = (user: User | LegacyUser, role: AppRole): AppProfile => ({
   role,
 });
 
+const withSafetyTimeout = async <T,>(promise: Promise<T>, fallback: T): Promise<T> => {
+  let timeoutId: ReturnType<typeof window.setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeoutId = window.setTimeout(() => resolve(fallback), AUTH_SAFETY_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+  }
+};
+
 const fetchUserRole = async (authUser: User): Promise<AppRole> => {
   if (!supabase || !hasSupabaseConfig) return 'cliente';
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', authUser.id)
-    .single();
+  try {
+    const { data, error } = await withSafetyTimeout(
+      supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', authUser.id)
+        .maybeSingle(),
+      { data: null, error: null },
+    );
 
-  if (error || !data?.role) return 'cliente';
-  return data.role === 'admin' ? 'admin' : 'cliente';
+    if (error) {
+      console.error('ERRO AO BUSCAR ROLE:', error);
+      return 'cliente';
+    }
+
+    if (!data?.role) return 'cliente';
+    return data.role === 'admin' ? 'admin' : 'cliente';
+  } catch (error) {
+    console.error('ERRO AO BUSCAR ROLE:', error);
+    return 'cliente';
+  }
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -93,10 +122,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setState((current) => ({ ...current, loading: true, authError: null }));
-    const role = await fetchUserRole(authUser);
-    const profile = createProfile(authUser, role);
-    setState({ user: authUser, profile, role, loading: false, authError: null });
-    return profile;
+
+    let role: AppRole = 'cliente';
+    let profile: AppProfile | null = null;
+
+    try {
+      role = await fetchUserRole(authUser);
+      profile = createProfile(authUser, role);
+      return profile;
+    } catch (error) {
+      console.error('ERRO AO BUSCAR ROLE:', error);
+      role = 'cliente';
+      profile = createProfile(authUser, role);
+      return profile;
+    } finally {
+      const safeProfile = profile || createProfile(authUser, role);
+      setState({ user: authUser, profile: safeProfile, role, loading: false, authError: null });
+    }
   };
 
   useEffect(() => {
@@ -109,7 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setState((current) => ({ ...current, loading: true, authError: null }));
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error } = await withSafetyTimeout(
+        supabase.auth.getSession(),
+        { data: { session: null }, error: null },
+      );
 
       if (!mounted) return;
 
