@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./components/LoginPage";
@@ -18,37 +18,18 @@ import { Delivery, deliveryService } from "./services/deliveryService";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
-const ROUTE_AUTH_TIMEOUT_MS = 3000;
 
-function useRouteAuthTimeout(loading: boolean) {
-  const [timedOut, setTimedOut] = useState(false);
-
-  useEffect(() => {
-    if (!loading) {
-      setTimedOut(false);
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => setTimedOut(true), ROUTE_AUTH_TIMEOUT_MS);
-    return () => window.clearTimeout(timeoutId);
-  }, [loading]);
-
-  return timedOut;
+function LoadingScreen() {
+  return <div>Carregando...</div>;
 }
 
 function RequireAuth({ children }: { children: JSX.Element }) {
-  const { user, role, loading } = useAuth();
-  const location = useLocation();
-  const authTimedOut = useRouteAuthTimeout(loading);
+  const { user, loading } = useAuth();
 
-  if (loading && !authTimedOut) {
-    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
+  if (loading) {
+    return <LoadingScreen />;
   }
   if (!user) {
-    // guarda a rota que o usuário queria e manda p/ login
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  if (!role) {
     return <Navigate to="/login" replace />;
   }
   return children;
@@ -56,14 +37,13 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 
 function RoleRedirect() {
   const { user, role, loading } = useAuth();
-  const authTimedOut = useRouteAuthTimeout(loading);
   console.log('SESSÃO ATUAL - ROLE:', (user as any)?.role || role);
 
-  if (loading && !authTimedOut) {
-    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
+  if (loading) {
+    return <LoadingScreen />;
   }
 
-  if (!user || !role) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
@@ -80,40 +60,36 @@ function RoleRedirect() {
 
 function RequireAdmin({ children }: { children: JSX.Element }) {
   const { user, role, loading } = useAuth();
-  const location = useLocation();
-  const authTimedOut = useRouteAuthTimeout(loading);
 
-  if (loading && !authTimedOut) {
-    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
+  if (loading) {
+    return <LoadingScreen />;
   }
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  if (!role) {
     return <Navigate to="/login" replace />;
   }
-  if (role !== 'admin') {
+  if (role === 'cliente') {
     return <Navigate to="/portal" replace />;
+  }
+  if (role !== 'admin') {
+    return <Navigate to="/login" replace />;
   }
   return children;
 }
 
 function RequireCliente({ children }: { children: JSX.Element }) {
   const { user, role, loading } = useAuth();
-  const location = useLocation();
-  const authTimedOut = useRouteAuthTimeout(loading);
 
-  if (loading && !authTimedOut) {
-    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
+  if (loading) {
+    return <LoadingScreen />;
   }
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  if (!role) {
     return <Navigate to="/login" replace />;
   }
   if (role === 'admin') {
     return <Navigate to="/entregas" replace />;
+  }
+  if (role !== 'cliente') {
+    return <Navigate to="/login" replace />;
   }
   return children;
 }
@@ -170,17 +146,13 @@ function ClientStoreFlow() {
 
 function RedirectIfAuthenticated({ children }: { children: JSX.Element }) {
   const { user, role, loading } = useAuth();
-  const authTimedOut = useRouteAuthTimeout(loading);
   console.log('SESSÃO ATUAL - ROLE:', (user as any)?.role || role);
 
-  if (loading && !authTimedOut) {
-    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
+  if (loading) {
+    return <LoadingScreen />;
   }
-  if (user && role) {
+  if (user) {
     return <RoleRedirect />;
-  }
-  if (user && !role) {
-    return <Navigate to="/login" replace />;
   }
   return children;
 }

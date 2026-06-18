@@ -1,7 +1,7 @@
-import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { DEV_MODE } from '@/config/devMode';
-import { hasSupabaseConfig, supabaseUrl } from '@/config/env';
+import { hasSupabaseConfig } from '@/config/env';
 import { supabase } from '@/lib/supabaseClient';
 
 export type AppRole = 'admin' | 'cliente';
@@ -38,365 +38,187 @@ interface AuthContextType {
   refreshProfile: () => Promise<AppProfile | null>;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  isAuthenticated: boolean;
 }
 
+type AuthState = {
+  user: User | LegacyUser | null;
+  profile: AppProfile | null;
+  role: AppRole | null;
+  loading: boolean;
+  authError: string | null;
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const AUTH_SESSION_TIMEOUT_MS = 3000;
 
-const authLog = (...args: unknown[]) => {
-  console.log('[auth]', ...args);
+const getUserDisplayName = (user: User | LegacyUser) => {
+  if ('name' in user && user.name) return user.name;
+  return user.user_metadata?.full_name || user.user_metadata?.name || user.email || '';
 };
 
-const authWarn = (...args: unknown[]) => {
-  console.warn('[auth]', ...args);
-};
-
-const getSupabaseProjectRef = () => {
-  try {
-    return new URL(supabaseUrl).hostname.split('.')[0];
-  } catch {
-    return '';
-  }
-};
-
-const clearCorruptedSupabaseAuthStorage = () => {
-  if (typeof window === 'undefined') return;
-
-  const projectRef = getSupabaseProjectRef();
-  const shouldClearKey = (key: string) => {
-    if (!key.startsWith('sb-')) return false;
-    if (!projectRef) return key.includes('auth-token');
-    return key.startsWith(`sb-${projectRef}-`) || (key.includes(projectRef) && key.includes('auth'));
-  };
-
-  try {
-    [localStorage, sessionStorage].forEach((storage) => {
-      Object.keys(storage).forEach((key) => {
-        if (shouldClearKey(key)) storage.removeItem(key);
-      });
-    });
-  } catch (error) {
-    authWarn('erro ao limpar sessão auth corrompida', error);
-  }
-};
-
-const createFallbackProfile = (user: User | LegacyUser, role: AppRole = 'admin'): AppProfile => ({
+const createProfile = (user: User | LegacyUser, role: AppRole): AppProfile => ({
   id: user.id || 'dev-profile',
   user_id: user.id || 'dev-user',
   email: user.email,
-  full_name: user.name || user.email,
-  name: user.name || user.email,
+  full_name: getUserDisplayName(user),
+  name: getUserDisplayName(user),
   role,
 });
 
-const mapProfile = (data: any, user: User): AppProfile => ({
-  id: data?.id || user.id,
-  user_id: data?.user_id || data?.id || user.id,
-  email: data?.email || user.email,
-  full_name: data?.full_name || data?.name || user.user_metadata?.full_name || user.email,
-  name: data?.name || data?.full_name || user.user_metadata?.name || user.user_metadata?.full_name || user.email,
-  role: data?.role === 'admin' ? 'admin' : 'cliente',
-  ...data,
-});
+const fetchUserRole = async (authUser: User): Promise<AppRole> => {
+  if (!supabase || !hasSupabaseConfig) return 'cliente';
 
-const basicProfilePayload = (authUser: User, role: AppRole = 'cliente') => ({
-  user_id: authUser.id,
-  email: authUser.email,
-  full_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email,
-  name: authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email,
-  role,
-  updated_at: new Date().toISOString(),
-});
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('user_id', authUser.id)
+    .single();
+
+  if (error || !data?.role) return 'cliente';
+  return data.role === 'admin' ? 'admin' : 'cliente';
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | LegacyUser | null>(null);
-  const [profile, setProfile] = useState<AppProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    profile: null,
+    role: null,
+    loading: true,
+    authError: null,
+  });
 
-  const loadProfileForUser = useCallback(async (authUser: User) => {
-    const { data, error } = await supabase!
-      .from('profiles')
-      .select('id,user_id,email,full_name,name,role,created_at,updated_at')
-      .eq('user_id', authUser.id)
-      .maybeSingle();
-
-    if (error) {
-      authWarn('profile load error', error);
-      setAuthError(error.message);
-      setProfile(null);
+  const applyUser = async (authUser: User | null) => {
+    if (!authUser) {
+      setState({ user: null, profile: null, role: null, loading: false, authError: null });
       return null;
     }
 
-    if (!data) {
-      const fallback = mapProfile(basicProfilePayload(authUser), authUser);
-      setProfile(fallback);
-
-      supabase!
-        .from('profiles')
-        .upsert(basicProfilePayload(authUser), { onConflict: 'user_id' })
-        .then(({ error: upsertError }) => {
-          if (upsertError) setAuthError(upsertError.message);
-        });
-
-      return fallback;
-    }
-
-    const mapped = mapProfile(data, authUser);
-    setProfile(mapped);
-    return mapped;
-  }, []);
-
-  const loadProfileInBackground = useCallback((authUser: User) => {
-    if (!supabase || !hasSupabaseConfig) return;
-
-    loadProfileForUser(authUser).catch((error) => {
-      authWarn('profile load error', error);
-      setAuthError(error instanceof Error ? error.message : 'Não foi possível carregar o perfil.');
-      setProfile(null);
-    });
-  }, [loadProfileForUser]);
-
-  const refreshProfile = useCallback(async () => {
-    if (!supabase || !hasSupabaseConfig) {
-      if (DEV_MODE && user) {
-        const fallback = createFallbackProfile(user);
-        setProfile(fallback);
-        return fallback;
-      }
-      setProfile(null);
-      return null;
-    }
-
-    const { data: authData, error: userError } = await supabase.auth.getUser();
-    if (userError || !authData.user) {
-      setUser(null);
-      setProfile(null);
-      return null;
-    }
-
-    setUser(authData.user);
-    return loadProfileForUser(authData.user);
-  }, [loadProfileForUser, user]);
+    setState((current) => ({ ...current, loading: true, authError: null }));
+    const role = await fetchUserRole(authUser);
+    const profile = createProfile(authUser, role);
+    setState({ user: authUser, profile, role, loading: false, authError: null });
+    return profile;
+  };
 
   useEffect(() => {
     let mounted = true;
-    let initFinished = false;
 
-    const forceFinishLoading = () => {
-      if (!mounted || initFinished) return;
-      initFinished = true;
-      authWarn('auth timeout forced');
-      clearCorruptedSupabaseAuthStorage();
-      setUser(null);
-      setProfile(null);
-      setLoading(false);
-    };
-
-    const timeoutId = window.setTimeout(forceFinishLoading, AUTH_SESSION_TIMEOUT_MS);
-
-    const finishInitialLoad = () => {
-      if (!mounted || initFinished) return;
-      initFinished = true;
-      window.clearTimeout(timeoutId);
-      setLoading(false);
-    };
-
-    const loadSession = async () => {
-      authLog('auth init start');
-      setLoading(true);
-      setAuthError(null);
-
-      try {
-        if (!supabase || !hasSupabaseConfig) {
-          authLog('getSession no session', 'supabase not configured');
-          if (mounted) {
-            setUser(null);
-            setProfile(null);
-          }
-          return;
-        }
-
-        const { data, error } = await supabase.auth.getSession();
-        if (!mounted || initFinished) return;
-
-        const authUser = data.session?.user || null;
-
-        if (error) {
-          authWarn('getSession error', error);
-          setAuthError(error.message);
-          clearCorruptedSupabaseAuthStorage();
-          setUser(null);
-          setProfile(null);
-          return;
-        }
-
-        if (!authUser) {
-          authLog('getSession no session');
-          setUser(null);
-          setProfile(null);
-          return;
-        }
-
-        authLog('getSession success');
-        setUser(authUser);
-        await loadProfileForUser(authUser);
-      } catch (error) {
-        if (!mounted || initFinished) return;
-        authWarn('getSession error', error);
-        setAuthError(error instanceof Error ? error.message : 'Não foi possível carregar a sessão.');
-        clearCorruptedSupabaseAuthStorage();
-        setUser(null);
-        setProfile(null);
-      } finally {
-        finishInitialLoad();
+    const loadInitialSession = async () => {
+      if (!supabase || !hasSupabaseConfig) {
+        if (mounted) setState({ user: null, profile: null, role: null, loading: false, authError: null });
+        return;
       }
+
+      setState((current) => ({ ...current, loading: true, authError: null }));
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (error) {
+        setState({ user: null, profile: null, role: null, loading: false, authError: error.message });
+        return;
+      }
+
+      await applyUser(data.session?.user || null);
     };
 
-    loadSession();
+    loadInitialSession();
 
     const { data: listener } = supabase?.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
-      authLog('auth state changed', _event);
-
-      try {
-        const authUser = session?.user || null;
-        setUser(authUser);
-
-        if (authUser) {
-          setLoading(true);
-          await loadProfileForUser(authUser);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
-      } catch (error) {
-        if (!mounted) return;
-        authWarn('auth state changed error', error);
-        setAuthError(error instanceof Error ? error.message : 'Não foi possível atualizar a sessão.');
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
-      }
+      setState((current) => ({ ...current, loading: true, authError: null }));
+      await applyUser(session?.user || null);
     }) || { data: null };
 
     return () => {
       mounted = false;
-      window.clearTimeout(timeoutId);
       listener?.subscription?.unsubscribe();
     };
-  }, [loadProfileForUser]);
+  }, []);
+
+  const refreshProfile = async () => {
+    if (!supabase || !hasSupabaseConfig) {
+      return state.profile;
+    }
+
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      setState({ user: null, profile: null, role: null, loading: false, authError: error?.message || null });
+      return null;
+    }
+
+    return applyUser(data.user);
+  };
 
   const signIn = async (email: string, password: string) => {
-    setAuthError(null);
-    setLoading(true);
+    setState((current) => ({ ...current, loading: true, authError: null }));
 
     if (!supabase || !hasSupabaseConfig) {
       if (DEV_MODE) {
-        const fallbackUser = { id: 'dev-user', email, name: 'Carol Graber' };
-        setUser(fallbackUser);
-        setProfile(createFallbackProfile(fallbackUser, 'admin'));
-        setLoading(false);
+        const devUser = { id: 'dev-user', email, name: 'Carol Graber' };
+        const profile = createProfile(devUser, 'admin');
+        setState({ user: devUser, profile, role: 'admin', loading: false, authError: null });
         return { success: true };
       }
 
       const error = 'Supabase não configurado. Crie o arquivo .env.local com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.';
-      setAuthError(error);
-      setLoading(false);
+      setState({ user: null, profile: null, role: null, loading: false, authError: error });
       return { success: false, error };
     }
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setAuthError(error.message);
-        setLoading(false);
-        return { success: false, error: error.message };
-      }
-
-      if (data.user) {
-        setUser(data.user);
-        await loadProfileForUser(data.user);
-      }
-      setLoading(false);
-      return { success: true };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Não foi possível autenticar.';
-      setAuthError(message);
-      setLoading(false);
-      return { success: false, error: message };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setState({ user: null, profile: null, role: null, loading: false, authError: error.message });
+      return { success: false, error: error.message };
     }
+
+    await applyUser(data.user);
+    return { success: true };
   };
 
   const signUp = async (email: string, password: string, metadata: Record<string, any> = {}) => {
-    setAuthError(null);
-    setLoading(false);
+    setState((current) => ({ ...current, loading: true, authError: null }));
 
     if (!supabase || !hasSupabaseConfig) {
       const error = 'Supabase não configurado. Configure o .env.local antes de criar acessos.';
-      setAuthError(error);
-      setLoading(false);
+      setState({ user: null, profile: null, role: null, loading: false, authError: error });
       return { success: false, error };
     }
 
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: metadata,
-      },
+      options: { data: metadata },
     });
 
     if (error) {
-      setAuthError(error.message);
-      setLoading(false);
+      setState((current) => ({ ...current, loading: false, authError: error.message }));
       return { success: false, error: error.message };
     }
 
     if (data.user) {
-      supabase.from('profiles').upsert({
+      const role: AppRole = metadata.role === 'admin' ? 'admin' : 'cliente';
+      await supabase.from('profiles').upsert({
         user_id: data.user.id,
         email,
         full_name: metadata.full_name || metadata.name || email,
         name: metadata.name || metadata.full_name || email,
-        role: metadata.role === 'admin' ? 'admin' : 'cliente',
+        role,
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' }).then(({ error: profileError }) => {
-        if (profileError) authWarn('profile load error', profileError);
-      });
+      }, { onConflict: 'user_id' });
 
-      setUser(data.user);
-      setProfile(createFallbackProfile(data.user, metadata.role === 'admin' ? 'admin' : 'cliente'));
-      setLoading(false);
-      loadProfileInBackground(data.user);
+      const profile = createProfile(data.user, role);
+      setState({ user: data.user, profile, role, loading: false, authError: null });
     } else {
-      setAuthError('Verifique seu e-mail para confirmar o acesso.');
-      setLoading(false);
+      setState((current) => ({ ...current, loading: false, authError: 'Verifique seu e-mail para confirmar o acesso.' }));
     }
 
     return { success: true };
   };
 
   const signOut = async () => {
-    setAuthError(null);
-    setUser(null);
-    setProfile(null);
-    setLoading(false);
-    clearCorruptedSupabaseAuthStorage();
-    authLog('logout local complete');
-
-    try {
-      if (supabase && hasSupabaseConfig) {
-        const { error } = await supabase.auth.signOut();
-        if (error) setAuthError(error.message);
-      }
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Não foi possível encerrar a sessão.');
-    } finally {
-      setUser(null);
-      setProfile(null);
-      setLoading(false);
+    setState({ user: null, profile: null, role: null, loading: false, authError: null });
+    if (supabase && hasSupabaseConfig) {
+      await supabase.auth.signOut();
     }
   };
 
@@ -405,25 +227,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result.success;
   };
 
-  const value = useMemo<AuthContextType>(() => {
-    const role = profile?.role || null;
-    return {
-      user,
-      profile,
-      role,
-      isAdmin: role === 'admin',
-      isCliente: role === 'cliente',
-      loading,
-      authError,
-      signIn,
-      signUp,
-      signOut,
-      refreshProfile,
-      login,
-      logout: signOut,
-      isAuthenticated: Boolean(user),
-    };
-  }, [user, profile, loading, authError, loadProfileForUser]);
+  const value = useMemo<AuthContextType>(() => ({
+    user: state.user,
+    profile: state.profile,
+    role: state.role,
+    isAdmin: state.role === 'admin',
+    isCliente: state.role === 'cliente',
+    loading: state.loading,
+    authError: state.authError,
+    signIn,
+    signUp,
+    signOut,
+    refreshProfile,
+    login,
+    logout: signOut,
+  }), [state]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
