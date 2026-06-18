@@ -37,7 +37,7 @@ function useRouteAuthTimeout(loading: boolean) {
 }
 
 function RequireAuth({ children }: { children: JSX.Element }) {
-  const { user, loading } = useAuth();
+  const { user, role, loading } = useAuth();
   const location = useLocation();
   const authTimedOut = useRouteAuthTimeout(loading);
 
@@ -48,18 +48,34 @@ function RequireAuth({ children }: { children: JSX.Element }) {
     // guarda a rota que o usuário queria e manda p/ login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
+  if (!role) {
+    return <Navigate to="/login" replace />;
+  }
   return children;
 }
 
 function RoleRedirect() {
-  const { role, loading } = useAuth();
+  const { user, role, loading } = useAuth();
   const authTimedOut = useRouteAuthTimeout(loading);
+  console.log('SESSÃO ATUAL - ROLE:', (user as any)?.role || role);
 
   if (loading && !authTimedOut) {
     return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
   }
 
-  return <Navigate to={role === 'admin' ? '/entregas' : '/loja'} replace />;
+  if (!user || !role) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (role === 'admin') {
+    return <Navigate to="/entregas" replace />;
+  }
+
+  if (role === 'cliente') {
+    return <Navigate to="/portal" replace />;
+  }
+
+  return <Navigate to="/login" replace />;
 }
 
 function RequireAdmin({ children }: { children: JSX.Element }) {
@@ -73,8 +89,11 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
+  if (!role) {
+    return <Navigate to="/login" replace />;
+  }
   if (role !== 'admin') {
-    return <Navigate to="/loja" replace />;
+    return <Navigate to="/portal" replace />;
   }
   return children;
 }
@@ -89,6 +108,9 @@ function RequireCliente({ children }: { children: JSX.Element }) {
   }
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  if (!role) {
+    return <Navigate to="/login" replace />;
   }
   if (role === 'admin') {
     return <Navigate to="/entregas" replace />;
@@ -147,14 +169,18 @@ function ClientStoreFlow() {
 }
 
 function RedirectIfAuthenticated({ children }: { children: JSX.Element }) {
-  const { user, loading } = useAuth();
+  const { user, role, loading } = useAuth();
   const authTimedOut = useRouteAuthTimeout(loading);
+  console.log('SESSÃO ATUAL - ROLE:', (user as any)?.role || role);
 
   if (loading && !authTimedOut) {
     return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
   }
-  if (user) {
+  if (user && role) {
     return <RoleRedirect />;
+  }
+  if (user && !role) {
+    return <Navigate to="/login" replace />;
   }
   return children;
 }
@@ -203,7 +229,7 @@ const App = () => (
                 path="/loja"
                 element={
                   <RequireCliente>
-                    <ClientStoreFlow />
+                    <Navigate to="/portal" replace />
                   </RequireCliente>
                 }
               />
@@ -212,7 +238,7 @@ const App = () => (
                 path="/portal"
                 element={
                   <RequireCliente>
-                    <CustomerPortal />
+                    <ClientStoreFlow />
                   </RequireCliente>
                 }
               />

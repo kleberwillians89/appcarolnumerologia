@@ -125,9 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       authWarn('profile load error', error);
       setAuthError(error.message);
-      const fallback = createFallbackProfile(authUser, 'cliente');
-      setProfile(fallback);
-      return fallback;
+      setProfile(null);
+      return null;
     }
 
     if (!data) {
@@ -152,11 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfileInBackground = useCallback((authUser: User) => {
     if (!supabase || !hasSupabaseConfig) return;
 
-    setProfile((current) => current || createFallbackProfile(authUser, 'cliente'));
     loadProfileForUser(authUser).catch((error) => {
       authWarn('profile load error', error);
       setAuthError(error instanceof Error ? error.message : 'Não foi possível carregar o perfil.');
-      setProfile(createFallbackProfile(authUser, 'cliente'));
+      setProfile(null);
     });
   }, [loadProfileForUser]);
 
@@ -243,8 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         authLog('getSession success');
         setUser(authUser);
-        setProfile(createFallbackProfile(authUser, 'cliente'));
-        loadProfileInBackground(authUser);
+        await loadProfileForUser(authUser);
       } catch (error) {
         if (!mounted || initFinished) return;
         authWarn('getSession error', error);
@@ -259,21 +256,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     loadSession();
 
-    const { data: listener } = supabase?.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase?.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
       authLog('auth state changed', _event);
 
       try {
         const authUser = session?.user || null;
         setUser(authUser);
-        setLoading(false);
 
         if (authUser) {
-          setProfile(createFallbackProfile(authUser, 'cliente'));
-          loadProfileInBackground(authUser);
+          setLoading(true);
+          await loadProfileForUser(authUser);
         } else {
           setProfile(null);
         }
+        setLoading(false);
       } catch (error) {
         if (!mounted) return;
         authWarn('auth state changed error', error);
@@ -289,11 +286,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(timeoutId);
       listener?.subscription?.unsubscribe();
     };
-  }, [loadProfileInBackground]);
+  }, [loadProfileForUser]);
 
   const signIn = async (email: string, password: string) => {
     setAuthError(null);
-    setLoading(false);
+    setLoading(true);
 
     if (!supabase || !hasSupabaseConfig) {
       if (DEV_MODE) {
@@ -320,10 +317,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (data.user) {
         setUser(data.user);
-        setProfile(createFallbackProfile(data.user, 'cliente'));
-        setLoading(false);
-        loadProfileInBackground(data.user);
+        await loadProfileForUser(data.user);
       }
+      setLoading(false);
       return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Não foi possível autenticar.';
