@@ -1,8 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Eye, FileText, Mail, MessageCircle, Phone, Send } from 'lucide-react';
+import {
+  Calendar,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  Crown,
+  Eye,
+  FileCheck2,
+  FileText,
+  Mail,
+  MessageCircle,
+  PackageCheck,
+  Phone,
+  Send,
+  Sparkles,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,22 +34,33 @@ const statusLabel: Record<DeliveryStatus, string> = {
   PAGO: 'Pago',
   DADOS_RECEBIDOS: 'Dados recebidos',
   AGUARDANDO_DADOS: 'Aguardando dados',
-  PRONTO_PARA_GERAR_PDF: 'Pronto para gerar PDF',
+  PRONTO_PARA_GERAR_PDF: 'Pronto para gerar',
   AGUARDANDO_ANALISE: 'Análise manual',
   PDF_GERADO: 'PDF gerado',
-  PDF_ENVIADO: 'PDF enviado',
+  PDF_ENVIADO: 'Entregue',
 };
 
 const statusClassName: Record<DeliveryStatus, string> = {
-  AGUARDANDO_PAGAMENTO: 'bg-yellow-500/15 text-yellow-100 border-yellow-500/30',
-  PAGO: 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30',
-  DADOS_RECEBIDOS: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30',
-  AGUARDANDO_DADOS: 'bg-yellow-500/15 text-yellow-100 border-yellow-500/30',
-  PRONTO_PARA_GERAR_PDF: 'bg-cyan-500/15 text-cyan-200 border-cyan-500/30',
-  AGUARDANDO_ANALISE: 'bg-orange-500/15 text-orange-200 border-orange-500/30',
-  PDF_GERADO: 'bg-blue-500/15 text-blue-200 border-blue-500/30',
-  PDF_ENVIADO: 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30',
+  AGUARDANDO_PAGAMENTO: 'border-yellow-400/30 bg-yellow-400/15 text-yellow-100',
+  PAGO: 'border-emerald-400/30 bg-emerald-400/15 text-emerald-100',
+  DADOS_RECEBIDOS: 'border-yellow-400/30 bg-yellow-400/15 text-yellow-100',
+  AGUARDANDO_DADOS: 'border-yellow-400/30 bg-yellow-400/15 text-yellow-100',
+  PRONTO_PARA_GERAR_PDF: 'border-sky-400/30 bg-sky-400/15 text-sky-100',
+  AGUARDANDO_ANALISE: 'border-orange-400/30 bg-orange-400/15 text-orange-100',
+  PDF_GERADO: 'border-blue-400/30 bg-blue-400/15 text-blue-100',
+  PDF_ENVIADO: 'border-violet-400/30 bg-violet-400/15 text-violet-100',
 };
+
+const statusOptions: DeliveryStatus[] = [
+  'AGUARDANDO_PAGAMENTO',
+  'PAGO',
+  'DADOS_RECEBIDOS',
+  'AGUARDANDO_DADOS',
+  'PRONTO_PARA_GERAR_PDF',
+  'AGUARDANDO_ANALISE',
+  'PDF_GERADO',
+  'PDF_ENVIADO',
+];
 
 const formatDate = (value: string | null) => {
   if (!value) return 'Não informado';
@@ -79,16 +105,12 @@ const getPdfLabel = (delivery: Delivery) => {
   return 'Ainda não gerado';
 };
 
-const statusOptions: DeliveryStatus[] = [
-  'AGUARDANDO_PAGAMENTO',
-  'PAGO',
-  'DADOS_RECEBIDOS',
-  'AGUARDANDO_DADOS',
-  'PRONTO_PARA_GERAR_PDF',
-  'AGUARDANDO_ANALISE',
-  'PDF_GERADO',
-  'PDF_ENVIADO',
-];
+const isOperationalQueue = (status: DeliveryStatus) =>
+  status === 'PAGO' ||
+  status === 'DADOS_RECEBIDOS' ||
+  status === 'AGUARDANDO_DADOS' ||
+  status === 'PRONTO_PARA_GERAR_PDF' ||
+  status === 'AGUARDANDO_ANALISE';
 
 export const DeliveriesPage: React.FC = () => {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -127,19 +149,14 @@ export const DeliveriesPage: React.FC = () => {
   const totals = useMemo(() => {
     return deliveries.reduce(
       (acc, delivery) => {
-        acc[delivery.status] += 1;
+        acc.total += 1;
+        if (delivery.status === 'AGUARDANDO_PAGAMENTO') acc.pending += 1;
+        if (delivery.status === 'PAGO') acc.paid += 1;
+        if (hasDeliveryPdf(delivery) || delivery.status === 'PDF_GERADO' || delivery.status === 'PDF_ENVIADO') acc.pdfs += 1;
+        if (isOperationalQueue(delivery.status)) acc.queue += 1;
         return acc;
       },
-      {
-        AGUARDANDO_PAGAMENTO: 0,
-        PAGO: 0,
-        DADOS_RECEBIDOS: 0,
-        AGUARDANDO_DADOS: 0,
-        PRONTO_PARA_GERAR_PDF: 0,
-        AGUARDANDO_ANALISE: 0,
-        PDF_GERADO: 0,
-        PDF_ENVIADO: 0,
-      } as Record<DeliveryStatus, number>
+      { total: 0, pending: 0, paid: 0, pdfs: 0, queue: 0 }
     );
   }, [deliveries]);
 
@@ -273,140 +290,168 @@ export const DeliveriesPage: React.FC = () => {
     }
   };
 
+  const kpis = [
+    { label: 'Total de Pedidos', value: totals.total, icon: Crown, tone: 'text-[#C9A96E]' },
+    { label: 'Pedidos Pendentes', value: totals.pending, icon: Clock3, tone: 'text-yellow-200' },
+    { label: 'Pedidos Pagos', value: totals.paid, icon: CreditCard, tone: 'text-emerald-200' },
+    { label: "PDF's Gerados", value: totals.pdfs, icon: FileCheck2, tone: 'text-sky-200' },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-yellow-500 text-sm font-semibold tracking-[0.2em]">OPERAÇÃO</p>
-          <h2 className="text-3xl md:text-4xl font-bold text-white mt-2">Entregas</h2>
-          <p className="text-slate-300 mt-2 max-w-2xl">
-            Fila de produtos, PDFs e envios por WhatsApp conectada ao Supabase quando o ambiente está configurado.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-center md:grid-cols-4">
-          <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
-            <p className="text-xl font-bold text-white">{totals.AGUARDANDO_PAGAMENTO}</p>
-            <p className="text-xs text-slate-300">Pagamentos</p>
+    <div className="space-y-6 text-[#F8F5EF]">
+      <section className="overflow-hidden rounded-lg border border-[#C9A96E]/25 bg-[#0B1426]/95 p-5 shadow-xl shadow-black/20">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-[#C9A96E]">
+              <Sparkles className="h-4 w-4" />
+              <p className="text-sm font-semibold tracking-[0.28em]">CENTRO DE COMANDO</p>
+            </div>
+            <h2 className="mt-3 text-3xl font-bold text-white md:text-4xl">Entregas da Carol</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#F8F5EF]/70">
+              Acompanhe pagamentos, formulários, PDFs e envios em uma visão operacional única.
+            </p>
           </div>
-          <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
-            <p className="text-xl font-bold text-white">{totals.PAGO + totals.DADOS_RECEBIDOS + totals.AGUARDANDO_DADOS + totals.PRONTO_PARA_GERAR_PDF + totals.AGUARDANDO_ANALISE}</p>
-            <p className="text-xs text-slate-300">Fila</p>
-          </div>
-          <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
-            <p className="text-xl font-bold text-white">{totals.PDF_GERADO}</p>
-            <p className="text-xs text-slate-300">PDFs</p>
-          </div>
-          <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
-            <p className="text-xl font-bold text-white">{totals.PDF_ENVIADO}</p>
-            <p className="text-xs text-slate-300">Enviadas</p>
+          <div className="rounded-md border border-[#C9A96E]/20 bg-[#070D1D]/80 px-4 py-3 text-sm text-[#F8F5EF]/75">
+            <span className="text-[#C9A96E]">{totals.queue}</span> pedidos em fila operacional
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid gap-3">
-        {isLoadingDeliveries ? (
-          <Card className="border border-yellow-500/20 bg-slate-900/70 text-white">
-            <CardContent className="py-8 text-slate-200">Carregando entregas...</CardContent>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((item) => (
+          <Card key={item.label} className="border border-[#C9A96E]/25 bg-[#0B1426]/90 text-[#F8F5EF] shadow-lg shadow-black/15">
+            <CardContent className="flex items-center justify-between p-5">
+              <div>
+                <p className="text-3xl font-bold text-white">{item.value}</p>
+                <p className="mt-1 text-sm text-[#F8F5EF]/65">{item.label}</p>
+              </div>
+              <div className="rounded-md border border-[#F8F5EF]/10 bg-[#070D1D] p-3">
+                <item.icon className={`h-6 w-6 ${item.tone}`} />
+              </div>
+            </CardContent>
           </Card>
-        ) : deliveries.map((delivery) => (
-          <Card key={delivery.id} className="overflow-hidden border border-yellow-500/20 bg-slate-900/75 text-white shadow-lg shadow-black/10">
-            <CardHeader className="border-b border-white/10 pb-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-xl leading-tight text-white">{delivery.nome}</CardTitle>
-                    <Badge className={statusClassName[delivery.status] || premiumClasses.badge}>{statusLabel[delivery.status]}</Badge>
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-200">
-                    <span className="flex items-center gap-1.5"><Phone className="h-4 w-4 text-yellow-400" />{getFormattedDeliveryPhone(delivery)}</span>
-                    {delivery.email && <span className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-yellow-400" />{delivery.email}</span>}
-                    <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4 text-yellow-400" />{formatDate(delivery.dataNascimento)}</span>
-                  </div>
-                </div>
+        ))}
+      </section>
 
-                <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
-                  <Button variant="outline" className={premiumClasses.secondaryButton} onClick={() => setSelectedDelivery(delivery)}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    Ver dados
-                  </Button>
+      <section className="overflow-hidden rounded-lg border border-[#C9A96E]/25 bg-[#0B1426]/95 shadow-xl shadow-black/20">
+        <div className="border-b border-[#F8F5EF]/10 px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Operação em tempo real</h3>
+              <p className="text-sm text-[#F8F5EF]/60">Pagamento, produção e entrega em uma única esteira.</p>
+            </div>
+            <Badge className="w-fit border-[#C9A96E]/35 bg-[#C9A96E]/15 text-[#F8F5EF]">
+              {deliveries.length} registros
+            </Badge>
+          </div>
+        </div>
+
+        <div className="hidden grid-cols-[1.2fr_1fr_0.8fr_0.9fr_1.2fr] gap-4 border-b border-[#F8F5EF]/10 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#F8F5EF]/45 xl:grid">
+          <span>Cliente</span>
+          <span>Produto</span>
+          <span>Status</span>
+          <span>Pagamento</span>
+          <span className="text-right">Ações</span>
+        </div>
+
+        <div className="space-y-3 p-3 sm:p-4">
+          {isLoadingDeliveries ? (
+            <div className="rounded-lg border border-[#F8F5EF]/10 bg-[#070D1D]/70 p-6 text-sm text-[#F8F5EF]/65">
+              Carregando entregas...
+            </div>
+          ) : deliveries.length === 0 ? (
+            <div className="rounded-lg border border-[#F8F5EF]/10 bg-[#070D1D]/70 p-6 text-sm text-[#F8F5EF]/65">
+              Nenhum pedido encontrado.
+            </div>
+          ) : deliveries.map((delivery) => (
+            <div
+              key={delivery.id}
+              className="grid gap-4 rounded-lg border border-[#F8F5EF]/10 bg-[#070D1D]/70 p-4 transition-all hover:border-[#C9A96E]/45 hover:bg-[#0B2535]/70 hover:shadow-lg hover:shadow-black/20 xl:grid-cols-[1.2fr_1fr_0.8fr_0.9fr_1.2fr] xl:items-center"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate font-semibold text-white">{delivery.nome}</p>
                   <Button
-                    className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-700 disabled:text-slate-300"
-                    onClick={() => openWhatsAppModal(delivery)}
-                    disabled={!canSendWhatsApp(delivery)}
-                    title={!canSendWhatsApp(delivery) ? 'Para enviar WhatsApp, gere o PDF e informe o telefone do cliente.' : undefined}
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-[#F8F5EF]/60 hover:bg-[#F8F5EF]/10 hover:text-white"
+                    onClick={() => setSelectedDelivery(delivery)}
+                    title="Ver dados"
                   >
-                    <MessageCircle className="mr-2 h-4 w-4" />
-                    Enviar WhatsApp
+                    <Eye className="h-4 w-4" />
                   </Button>
                 </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="space-y-4 pt-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                <div className="rounded-md bg-white/[0.04] p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Produto</p>
-                  <p className="mt-1 text-sm font-medium text-slate-50">{getProductLabel(delivery.produto)}</p>
-                </div>
-                <div className="rounded-md bg-white/[0.04] p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Status</p>
-                  <p className="mt-1 text-sm font-medium text-slate-50">{statusLabel[delivery.status]}</p>
-                </div>
-                <div className="rounded-md bg-white/[0.04] p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Status de Pagamento</p>
-                  <p className="mt-1 text-sm font-medium text-slate-50">
-                    {delivery.status === 'AGUARDANDO_PAGAMENTO' ? 'Aguardando pagamento' : delivery.status === 'PAGO' ? 'Pago' : 'Liberado'}
-                  </p>
-                </div>
-                <div className="rounded-md bg-white/[0.04] p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Criada em</p>
-                  <p className="mt-1 text-sm font-medium text-slate-50">{formatDateTime(delivery.dataCriacao)}</p>
-                </div>
-                <div className="rounded-md bg-white/[0.04] p-3 xl:col-span-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Arquivo/PDF</p>
-                  <p className="mt-1 truncate text-sm font-medium text-slate-50">{getPdfLabel(delivery)}</p>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#F8F5EF]/60">
+                  <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-[#C9A96E]" />{getFormattedDeliveryPhone(delivery)}</span>
+                  {delivery.email && <span className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-[#C9A96E]" />{delivery.email}</span>}
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 border-t border-white/10 pt-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="w-full max-w-sm">
-                  <Label htmlFor={`status-${delivery.id}`} className="text-xs font-medium text-slate-300">Atualizar status</Label>
-                  <select
-                    id={`status-${delivery.id}`}
-                    value={delivery.status}
-                    onChange={(event) => handleStatusChange(delivery, event.target.value as DeliveryStatus)}
-                    className={`mt-1 ${premiumClasses.select}`}
-                  >
-                    {statusOptions.map((status) => (
-                      <option key={status} value={status}>{statusLabel[status]}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <p className="text-sm font-medium text-white">{getProductLabel(delivery.produto)}</p>
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-[#F8F5EF]/55">
+                  <Calendar className="h-3.5 w-3.5 text-[#C9A96E]" />
+                  {formatDate(delivery.dataNascimento)}
+                </p>
+              </div>
 
+              <div>
+                <Badge className={`${statusClassName[delivery.status] || premiumClasses.badge} rounded-full border px-3 py-1`}>
+                  {statusLabel[delivery.status]}
+                </Badge>
+              </div>
+
+              <div className="space-y-2">
+                <select
+                  value={delivery.status}
+                  onChange={(event) => handleStatusChange(delivery, event.target.value as DeliveryStatus)}
+                  className={premiumClasses.select}
+                  aria-label="Status de pagamento"
+                >
+                  {statusOptions.map((status) => (
+                    <option key={status} value={status}>{statusLabel[status]}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-[#F8F5EF]/45">{getPdfLabel(delivery)}</p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
                 {!hasDeliveryPdf(delivery) && (
-                  <Button className={`${premiumClasses.primaryButton} w-full sm:w-auto`} onClick={() => handleGeneratePdf(delivery)} disabled={isGenerating === delivery.id}>
+                  <Button
+                    className={`${premiumClasses.primaryButton} w-full sm:w-auto`}
+                    onClick={() => handleGeneratePdf(delivery)}
+                    disabled={isGenerating === delivery.id}
+                  >
                     <FileText className="mr-2 h-4 w-4" />
                     {isGenerating === delivery.id ? 'Gerando...' : 'Gerar PDF'}
                   </Button>
                 )}
+                <Button
+                  className="w-full bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-[#111827] disabled:text-[#F8F5EF]/35 sm:w-auto"
+                  onClick={() => openWhatsAppModal(delivery)}
+                  disabled={!canSendWhatsApp(delivery)}
+                  title={!canSendWhatsApp(delivery) ? 'Para enviar WhatsApp, gere o PDF e informe o telefone do cliente.' : undefined}
+                >
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  WhatsApp
+                </Button>
               </div>
-              {!canSendWhatsApp(delivery) && (
-                <p className="text-xs text-slate-300">Para enviar WhatsApp, gere o PDF e informe o telefone do cliente.</p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <Dialog open={!!selectedDelivery} onOpenChange={() => setSelectedDelivery(null)}>
         <DialogContent className="sm:max-w-2xl border-[#C9A96E]/30 bg-[#0B1426] text-[#F8F5EF]">
           <DialogHeader>
-            <DialogTitle>Dados da entrega</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <PackageCheck className="h-5 w-5 text-[#C9A96E]" />
+              Dados da entrega
+            </DialogTitle>
           </DialogHeader>
           {selectedDelivery && (
             <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div><p className="text-[#F8F5EF]/65">ID</p><p className="font-medium">{selectedDelivery.id}</p></div>
                 <div><p className="text-[#F8F5EF]/65">Status</p><p className="font-medium">{statusLabel[selectedDelivery.status]}</p></div>
                 <div><p className="text-[#F8F5EF]/65">Nome</p><p className="font-medium">{selectedDelivery.nome}</p></div>
@@ -415,7 +460,7 @@ export const DeliveriesPage: React.FC = () => {
                 <div><p className="text-[#F8F5EF]/65">Email</p><p className="font-medium">{selectedDelivery.email || 'Não informado'}</p></div>
                 <div><p className="text-[#F8F5EF]/65">Nascimento</p><p className="font-medium">{formatDate(selectedDelivery.dataNascimento)}</p></div>
                 <div><p className="text-[#F8F5EF]/65">Origem</p><p className="font-medium">{selectedDelivery.origem}</p></div>
-                <div><p className="text-[#F8F5EF]/65">Criacao</p><p className="font-medium">{formatDateTime(selectedDelivery.dataCriacao)}</p></div>
+                <div><p className="text-[#F8F5EF]/65">Criação</p><p className="font-medium">{formatDateTime(selectedDelivery.dataCriacao)}</p></div>
                 <div><p className="text-[#F8F5EF]/65">Envio</p><p className="font-medium">{formatDateTime(selectedDelivery.dataEnvio)}</p></div>
               </div>
               <div>
@@ -439,7 +484,7 @@ export const DeliveriesPage: React.FC = () => {
         <DialogContent className="sm:max-w-xl border-[#C9A96E]/30 bg-[#0B1426] text-[#F8F5EF]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-emerald-600" />
+              <Send className="w-5 h-5 text-emerald-400" />
               Confirmar envio por WhatsApp
             </DialogTitle>
           </DialogHeader>
@@ -465,7 +510,8 @@ export const DeliveriesPage: React.FC = () => {
 
           <DialogFooter>
             <Button variant="outline" className={premiumClasses.secondaryButton} onClick={() => setWhatsAppDelivery(null)}>Cancelar</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSendWhatsApp} disabled={!!isSending}>
+            <Button className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={handleSendWhatsApp} disabled={!!isSending}>
+              <CheckCircle2 className="mr-2 h-4 w-4" />
               {isSending ? 'Enviando...' : 'Abrir WhatsApp'}
             </Button>
           </DialogFooter>
