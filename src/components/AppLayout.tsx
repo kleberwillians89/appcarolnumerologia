@@ -9,9 +9,10 @@ import QuarterCycleTestPanel from './QuarterCycleTestPanel';
 import { DEV_MODE } from '@/config/devMode';
 import { SettingsPage } from './SettingsPage';
 import { AcquisitionPage } from './AcquisitionPage';
+import { DeliveriesPage } from './DeliveriesPage';
 
 
-type AppTab = 'numerology' | 'personalYear' | 'profiles' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
+type AppTab = 'deliveries' | 'numerology' | 'personalYear' | 'profiles' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
 
 const productionTabs: Array<{ id: AppTab; label: string }> = [
   { id: 'numerology', label: 'Mapa da Alma' },
@@ -21,6 +22,10 @@ const productionTabs: Array<{ id: AppTab; label: string }> = [
   { id: 'settings', label: 'Configurações' },
 ];
 
+const adminTabs: Array<{ id: AppTab; label: string }> = [
+  { id: 'deliveries', label: 'Entregas' },
+];
+
 const devTabs: Array<{ id: AppTab; label: string }> = DEV_MODE
   ? [
       { id: 'compatibility', label: 'Compatibilidade' },
@@ -28,19 +33,21 @@ const devTabs: Array<{ id: AppTab; label: string }> = DEV_MODE
     ]
   : [];
 
-const navTabs = [...productionTabs, ...devTabs];
+interface AppLayoutProps {
+  initialTab?: AppTab;
+}
 
-
-
-const AppLayout: React.FC = () => {
+const AppLayout: React.FC<AppLayoutProps> = ({ initialTab = 'numerology' }) => {
   const {
     user,
     profile,
+    isAdmin,
     loading,
     logout,
   } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<AppTab>('numerology');
+  const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
+  const navTabs = [...(isAdmin ? adminTabs : []), ...productionTabs, ...devTabs];
 
   const handleLogout = async () => {
     const logoutPromise = logout();
@@ -101,6 +108,8 @@ const AppLayout: React.FC = () => {
         <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 md:py-12">
           {activeTab === 'tests' ? (
             <QuarterCycleTestPanel />
+          ) : activeTab === 'deliveries' && isAdmin ? (
+            <DeliveriesPage />
           ) : activeTab === 'settings' ? (
             <SettingsPage />
           ) : activeTab === 'profiles' ? (

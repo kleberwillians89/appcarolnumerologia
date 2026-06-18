@@ -6,10 +6,12 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
-import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./components/LoginPage";
 import { SharedProfileView } from "./components/SharedProfileView";
+import AppLayout from "./components/AppLayout";
+import { CustomerPortal } from "./components/CustomerPortal";
+import { AppProvider } from "./contexts/AppContext";
 
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
@@ -47,18 +49,60 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function RedirectIfAuthenticated({ children }: { children: JSX.Element }) {
-  const { user, loading } = useAuth();
+function RoleRedirect() {
+  const { role, loading } = useAuth();
+  const authTimedOut = useRouteAuthTimeout(loading);
+
+  if (loading && !authTimedOut) {
+    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
+  }
+
+  return <Navigate to={role === 'admin' ? '/entregas' : '/portal'} replace />;
+}
+
+function RequireAdmin({ children }: { children: JSX.Element }) {
+  const { user, role, loading } = useAuth();
   const location = useLocation();
   const authTimedOut = useRouteAuthTimeout(loading);
 
   if (loading && !authTimedOut) {
     return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
   }
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  if (role !== 'admin') {
+    return <Navigate to="/portal" replace />;
+  }
+  return children;
+}
+
+function RequireCliente({ children }: { children: JSX.Element }) {
+  const { user, role, loading } = useAuth();
+  const location = useLocation();
+  const authTimedOut = useRouteAuthTimeout(loading);
+
+  if (loading && !authTimedOut) {
+    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
+  }
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  if (role === 'admin') {
+    return <Navigate to="/entregas" replace />;
+  }
+  return children;
+}
+
+function RedirectIfAuthenticated({ children }: { children: JSX.Element }) {
+  const { user, loading } = useAuth();
+  const authTimedOut = useRouteAuthTimeout(loading);
+
+  if (loading && !authTimedOut) {
+    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando sessão...</div>;
+  }
   if (user) {
-    // se já está logado, não precisa ver /login
-    const to = (location.state as any)?.from?.pathname || "/";
-    return <Navigate to={to} replace />;
+    return <RoleRedirect />;
   }
   return children;
 }
@@ -87,13 +131,30 @@ const App = () => (
                 path="/"
                 element={
                   <RequireAuth>
-                    <Index />
+                    <RoleRedirect />
                   </RequireAuth>
                 }
               />
 
-              {/* Portal de cliente desativado temporariamente: o app abre no fluxo operacional. */}
-              <Route path="/portal" element={<Navigate to="/" replace />} />
+              <Route
+                path="/entregas"
+                element={
+                  <RequireAdmin>
+                    <AppProvider>
+                      <AppLayout initialTab="deliveries" />
+                    </AppProvider>
+                  </RequireAdmin>
+                }
+              />
+
+              <Route
+                path="/portal"
+                element={
+                  <RequireCliente>
+                    <CustomerPortal />
+                  </RequireCliente>
+                }
+              />
 
               {/* Shared Profile View (Public) */}
               <Route path="/shared/:shareId" element={<SharedProfileView />} />
