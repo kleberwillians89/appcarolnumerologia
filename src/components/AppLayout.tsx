@@ -9,9 +9,10 @@ import QuarterCycleTestPanel from './QuarterCycleTestPanel';
 import { DEV_MODE } from '@/config/devMode';
 import { SettingsPage } from './SettingsPage';
 import { AcquisitionPage } from './AcquisitionPage';
+import { DeliveriesPage } from './DeliveriesPage';
 
 
-type AppTab = 'numerology' | 'personalYear' | 'profiles' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
+type AppTab = 'deliveries' | 'numerology' | 'personalYear' | 'profiles' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
 
 const productionTabs: Array<{ id: AppTab; label: string }> = [
   { id: 'numerology', label: 'Mapa da Alma' },
@@ -28,16 +29,29 @@ const devTabs: Array<{ id: AppTab; label: string }> = DEV_MODE
     ]
   : [];
 
-const AppLayout: React.FC = () => {
+interface AppLayoutProps {
+  initialTab?: AppTab;
+}
+
+const AppLayout: React.FC<AppLayoutProps> = ({ initialTab = 'numerology' }) => {
   const {
     user,
     profile,
+    isAdmin,
     loading,
     logout,
   } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<AppTab>('numerology');
-  const navTabs = [...productionTabs, ...devTabs];
+  const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
+  const navTabs = [
+    productionTabs[0],
+    productionTabs[1],
+    ...(isAdmin ? [{ id: 'deliveries' as AppTab, label: 'Entregas' }] : []),
+    productionTabs[2],
+    productionTabs[3],
+    productionTabs[4],
+    ...devTabs,
+  ];
 
   const handleLogout = async () => {
     const logoutPromise = logout();
@@ -98,6 +112,8 @@ const AppLayout: React.FC = () => {
         <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 md:py-12">
           {activeTab === 'tests' ? (
             <QuarterCycleTestPanel />
+          ) : activeTab === 'deliveries' && isAdmin ? (
+            <DeliveriesPage />
           ) : activeTab === 'settings' ? (
             <SettingsPage />
           ) : activeTab === 'profiles' ? (

@@ -16,6 +16,8 @@ import { premiumClasses } from '@/config/premiumClasses';
 import { WHATSAPP_URL } from '@/config/links';
 
 const statusLabel: Record<string, string> = {
+  AGUARDANDO_PAGAMENTO: 'Aguardando pagamento',
+  PAGO: 'Pagamento confirmado',
   DADOS_RECEBIDOS: 'Dados recebidos',
   AGUARDANDO_DADOS: 'Aguardando dados',
   PRONTO_PARA_GERAR_PDF: 'Pronto para gerar PDF',
@@ -29,7 +31,7 @@ const initialForm = {
   telefone: '',
   email: '',
   dataNascimento: '',
-  produto: 'mapa' as 'mapa' | 'ano_pessoal',
+  produto: 'desvende_mapa',
   observacoesCliente: '',
 };
 
@@ -44,10 +46,11 @@ export const CustomerPortal: React.FC = () => {
   const [pdfUrls, setPdfUrls] = useState<Record<string, string>>({});
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<'mapa' | 'ano_pessoal'>('mapa');
+  const [selectedProduct, setSelectedProduct] = useState('desvende_mapa');
 
   const userId = user?.id || '';
   const activeDelivery = deliveries.find((delivery) =>
+    delivery.status === 'PAGO' ||
     delivery.status === 'AGUARDANDO_DADOS' ||
     !delivery.nome ||
     !delivery.telefone ||
@@ -96,10 +99,10 @@ export const CustomerPortal: React.FC = () => {
       telefone: activeDelivery.telefone ? formatBrazilianPhone(activeDelivery.telefone) : current.telefone,
       email: activeDelivery.email || current.email || user?.email || '',
       dataNascimento: activeDelivery.dataNascimento || current.dataNascimento,
-      produto: activeDelivery.produto,
+      produto: activeDelivery.produto || current.produto,
       observacoesCliente: activeDelivery.observacoesCliente || current.observacoesCliente,
     }));
-    setSelectedProduct(activeDelivery.produto);
+    setSelectedProduct(activeDelivery.produto || 'desvende_mapa');
     setShowForm(true);
   }, [activeDelivery?.id]);
 
@@ -230,7 +233,7 @@ export const CustomerPortal: React.FC = () => {
     setGeneratingPdfId(delivery.id);
     try {
       const result = await generatePdfForProduct({
-        produto: delivery.produto,
+        produto: delivery.produto === 'ano_pessoal' ? 'ano_pessoal' : 'mapa',
         cliente: {
           nome: delivery.nome,
           dataNascimento: delivery.dataNascimento,
@@ -335,11 +338,14 @@ export const CustomerPortal: React.FC = () => {
               <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
                 <select
                   value={selectedProduct}
-                  onChange={(event) => setSelectedProduct(event.target.value as 'mapa' | 'ano_pessoal')}
+                  onChange={(event) => setSelectedProduct(event.target.value)}
                   className={premiumClasses.select}
                 >
-                  <option value="mapa">Mapa da Alma</option>
-                  <option value="ano_pessoal">Ano Pessoal</option>
+                  <option value="desvende_mapa">Desvende seu Mapa</option>
+                  <option value="nome_profissional_marca">Nome Profissional/Marca</option>
+                  <option value="data_cesarea">Data para Cesárea</option>
+                  <option value="nome_bebe">Nome do Bebê</option>
+                  <option value="abertura_empresa">Abertura de Empresa</option>
                 </select>
                 <Button className={premiumClasses.primaryButton} onClick={handleStartProduct}>
                   Escolher produto
@@ -398,12 +404,15 @@ export const CustomerPortal: React.FC = () => {
                 <select
                   id="customer-product"
                   value={form.produto}
-                  onChange={(e) => setForm({ ...form, produto: e.target.value as 'mapa' | 'ano_pessoal' })}
+                  onChange={(e) => setForm({ ...form, produto: e.target.value })}
                   className={premiumClasses.select}
                   disabled={Boolean(activeDelivery)}
                 >
-                  <option value="mapa">Mapa da Alma</option>
-                  <option value="ano_pessoal">Ano Pessoal</option>
+                  <option value="desvende_mapa">Desvende seu Mapa</option>
+                  <option value="nome_profissional_marca">Nome Profissional/Marca</option>
+                  <option value="data_cesarea">Data para Cesárea</option>
+                  <option value="nome_bebe">Nome do Bebê</option>
+                  <option value="abertura_empresa">Abertura de Empresa</option>
                 </select>
               </div>
               <div className="md:col-span-2">

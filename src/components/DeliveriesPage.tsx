@@ -15,6 +15,8 @@ import { pdfStorageService } from '@/services/pdfStorageService';
 import { premiumClasses } from '@/config/premiumClasses';
 
 const statusLabel: Record<DeliveryStatus, string> = {
+  AGUARDANDO_PAGAMENTO: 'Aguardando pagamento',
+  PAGO: 'Pago',
   DADOS_RECEBIDOS: 'Dados recebidos',
   AGUARDANDO_DADOS: 'Aguardando dados',
   PRONTO_PARA_GERAR_PDF: 'Pronto para gerar PDF',
@@ -24,6 +26,8 @@ const statusLabel: Record<DeliveryStatus, string> = {
 };
 
 const statusClassName: Record<DeliveryStatus, string> = {
+  AGUARDANDO_PAGAMENTO: 'bg-yellow-500/15 text-yellow-100 border-yellow-500/30',
+  PAGO: 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30',
   DADOS_RECEBIDOS: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30',
   AGUARDANDO_DADOS: 'bg-yellow-500/15 text-yellow-100 border-yellow-500/30',
   PRONTO_PARA_GERAR_PDF: 'bg-cyan-500/15 text-cyan-200 border-cyan-500/30',
@@ -76,6 +80,8 @@ const getPdfLabel = (delivery: Delivery) => {
 };
 
 const statusOptions: DeliveryStatus[] = [
+  'AGUARDANDO_PAGAMENTO',
+  'PAGO',
   'DADOS_RECEBIDOS',
   'AGUARDANDO_DADOS',
   'PRONTO_PARA_GERAR_PDF',
@@ -125,6 +131,8 @@ export const DeliveriesPage: React.FC = () => {
         return acc;
       },
       {
+        AGUARDANDO_PAGAMENTO: 0,
+        PAGO: 0,
         DADOS_RECEBIDOS: 0,
         AGUARDANDO_DADOS: 0,
         PRONTO_PARA_GERAR_PDF: 0,
@@ -148,7 +156,7 @@ export const DeliveriesPage: React.FC = () => {
       }
 
       const result = await generatePdfForProduct({
-        produto: delivery.produto,
+        produto: delivery.produto === 'ano_pessoal' ? 'ano_pessoal' : 'mapa',
         cliente: {
           nome: delivery.nome,
           dataNascimento: delivery.dataNascimento,
@@ -276,9 +284,13 @@ export const DeliveriesPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-2 text-center md:grid-cols-4">
           <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
-            <p className="text-xl font-bold text-white">{totals.DADOS_RECEBIDOS + totals.AGUARDANDO_DADOS + totals.PRONTO_PARA_GERAR_PDF + totals.AGUARDANDO_ANALISE}</p>
+            <p className="text-xl font-bold text-white">{totals.AGUARDANDO_PAGAMENTO}</p>
+            <p className="text-xs text-slate-300">Pagamentos</p>
+          </div>
+          <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
+            <p className="text-xl font-bold text-white">{totals.PAGO + totals.DADOS_RECEBIDOS + totals.AGUARDANDO_DADOS + totals.PRONTO_PARA_GERAR_PDF + totals.AGUARDANDO_ANALISE}</p>
             <p className="text-xs text-slate-300">Fila</p>
           </div>
           <div className="rounded-lg border border-yellow-500/20 bg-slate-900/70 px-4 py-3">
@@ -342,10 +354,16 @@ export const DeliveriesPage: React.FC = () => {
                   <p className="mt-1 text-sm font-medium text-slate-50">{statusLabel[delivery.status]}</p>
                 </div>
                 <div className="rounded-md bg-white/[0.04] p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Status de Pagamento</p>
+                  <p className="mt-1 text-sm font-medium text-slate-50">
+                    {delivery.status === 'AGUARDANDO_PAGAMENTO' ? 'Aguardando pagamento' : delivery.status === 'PAGO' ? 'Pago' : 'Liberado'}
+                  </p>
+                </div>
+                <div className="rounded-md bg-white/[0.04] p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Criada em</p>
                   <p className="mt-1 text-sm font-medium text-slate-50">{formatDateTime(delivery.dataCriacao)}</p>
                 </div>
-                <div className="rounded-md bg-white/[0.04] p-3 sm:col-span-2">
+                <div className="rounded-md bg-white/[0.04] p-3 xl:col-span-1">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Arquivo/PDF</p>
                   <p className="mt-1 truncate text-sm font-medium text-slate-50">{getPdfLabel(delivery)}</p>
                 </div>

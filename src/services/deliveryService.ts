@@ -5,6 +5,8 @@ import { normalizeBrazilianPhone } from '@/utils/phoneUtils';
 import { PdfProduct, PdfProductKey } from './pdfDeliveryService';
 
 export type DeliveryStatus =
+  | 'AGUARDANDO_PAGAMENTO'
+  | 'PAGO'
   | 'DADOS_RECEBIDOS'
   | 'AGUARDANDO_DADOS'
   | 'PRONTO_PARA_GERAR_PDF'
@@ -20,7 +22,7 @@ export interface Delivery {
   telefone: string;
   telefoneNormalizado: string;
   email?: string;
-  produto: PdfProductKey;
+  produto: PdfProductKey | string;
   tipoProduto?: string | null;
   status: DeliveryStatus;
   dataNascimento: string;
@@ -41,7 +43,7 @@ export interface SiteLeadPayload {
   nome: string;
   telefone: string;
   email?: string;
-  produto: PdfProductKey;
+  produto: PdfProductKey | string;
   tipoProduto?: string | null;
   dataNascimento: string;
   userId?: string | null;
@@ -182,10 +184,14 @@ const mockDeliveries: Delivery[] = [
 const isBrowser = () => typeof window !== 'undefined';
 
 const normalizeStatus = (status: any): DeliveryStatus => {
+  if (status === 'AGUARDANDO_PAGAMENTO' || status === 'aguardando_pagamento') return 'AGUARDANDO_PAGAMENTO';
+  if (status === 'PAGO' || status === 'pago') return 'PAGO';
   if (status === 'pdf_gerado') return 'PDF_GERADO';
   if (status === 'enviado') return 'PDF_ENVIADO';
   if (status === 'pendente') return 'DADOS_RECEBIDOS';
   if (
+    status === 'AGUARDANDO_PAGAMENTO' ||
+    status === 'PAGO' ||
     status === 'DADOS_RECEBIDOS' ||
     status === 'AGUARDANDO_DADOS' ||
     status === 'PRONTO_PARA_GERAR_PDF' ||
@@ -199,8 +205,10 @@ const normalizeStatus = (status: any): DeliveryStatus => {
   return 'DADOS_RECEBIDOS';
 };
 
-const normalizeProduct = (produto: any): PdfProductKey => {
+const normalizeProduct = (produto: any): PdfProductKey | string => {
   if (produto === 'ano_pessoal' || produto === 'Ano Pessoal') return 'ano_pessoal';
+  if (produto === 'mapa' || produto === 'Mapa da Alma') return 'mapa';
+  if (typeof produto === 'string' && produto.trim()) return produto;
   return 'mapa';
 };
 
@@ -280,10 +288,8 @@ const logSupabaseMutationError = (operation: string, payload: Record<string, any
 
 const hasMinimumCreateFields = (payload: Partial<Delivery>) => Boolean(
   payload.nome &&
-  payload.telefone &&
   payload.produto &&
   payload.status &&
-  payload.dataNascimento &&
   payload.origem
 );
 
@@ -315,7 +321,12 @@ const getInitialStatus = (payload: SiteLeadPayload): DeliveryStatus => {
   return 'PRONTO_PARA_GERAR_PDF';
 };
 
-export const getProductLabel = (produto: PdfProductKey | PdfProduct) => {
+export const getProductLabel = (produto: PdfProductKey | PdfProduct | string) => {
+  if (produto === 'desvende_mapa') return 'Desvende seu Mapa';
+  if (produto === 'nome_profissional_marca') return 'Nome Profissional/Marca';
+  if (produto === 'data_cesarea') return 'Data para Cesárea';
+  if (produto === 'nome_bebe') return 'Nome do Bebê';
+  if (produto === 'abertura_empresa') return 'Abertura de Empresa';
   if (produto === 'mapa') return 'Mapa da Alma';
   if (produto === 'ano_pessoal') return 'Ano Pessoal';
   return 'Produto';
@@ -368,7 +379,7 @@ export const deliveryService = {
 
   async fetchDeliveriesForCurrentUser(userId: string): Promise<Delivery[]> {
     if (!(await hasActiveSupabaseSession())) {
-      return localDeliveryStore.listDeliveries().filter((delivery) => !delivery.userId || delivery.userId === userId);
+      return localDeliveryStore.listDeliveries().filter((delivery) => delivery.userId === userId);
     }
 
     const { data, error } = await supabase!
@@ -380,7 +391,7 @@ export const deliveryService = {
 
     if (error) {
       console.warn('[deliveryService] Usando entregas locais do usuario apos erro no Supabase', error.message);
-      return localDeliveryStore.listDeliveries().filter((delivery) => !delivery.userId || delivery.userId === userId);
+      return localDeliveryStore.listDeliveries().filter((delivery) => delivery.userId === userId);
     }
     return (data || []).map(mapDeliveryFromSupabase);
   },
