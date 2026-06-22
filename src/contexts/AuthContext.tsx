@@ -99,27 +99,15 @@ const withSafetyTimeout = async <T,>(promise: Promise<T>, fallback: T): Promise<
 const fetchUserRole = async (authUser: User): Promise<AppRole> => {
   if (!supabase || !hasSupabaseConfig) return 'cliente';
 
-  try {
-    const { data, error } = await withSafetyTimeout(
-      supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', authUser.id)
-        .maybeSingle(),
-      { data: null, error: null },
-    );
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('user_id', authUser.id)
+    .maybeSingle();
 
-    if (error) {
-      console.error('ERRO AO BUSCAR ROLE:', error);
-      return 'cliente';
-    }
-
-    if (!data?.role) return 'cliente';
-    return data.role === 'admin' ? 'admin' : 'cliente';
-  } catch (error) {
-    console.error('ERRO AO BUSCAR ROLE:', error);
-    return 'cliente';
-  }
+  if (error) throw new Error(`Não foi possível validar o perfil de acesso: ${error.message}`);
+  if (!data?.role) throw new Error('Perfil de acesso não encontrado. Contate o suporte.');
+  return data.role === 'admin' ? 'admin' : 'cliente';
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -139,21 +127,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setState((current) => ({ ...current, loading: true, authError: null }));
 
-    let role: AppRole = 'cliente';
-    let profile: AppProfile | null = null;
-
     try {
-      role = await fetchUserRole(authUser);
-      profile = createProfile(authUser, role);
+      const role = await fetchUserRole(authUser);
+      const profile = createProfile(authUser, role);
+      setState({ user: authUser, profile, role, loading: false, authError: null });
       return profile;
     } catch (error) {
       console.error('ERRO AO BUSCAR ROLE:', error);
-      role = 'cliente';
-      profile = createProfile(authUser, role);
-      return profile;
-    } finally {
-      const safeProfile = profile || createProfile(authUser, role);
-      setState({ user: authUser, profile: safeProfile, role, loading: false, authError: null });
+      const message = error instanceof Error ? error.message : 'Não foi possível validar o perfil de acesso.';
+      setState({ user: null, profile: null, role: null, loading: false, authError: message });
+      return null;
     }
   };
 
@@ -233,7 +216,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: error.message };
     }
 
-    await applyUser(data.user);
+    const profile = await applyUser(data.user);
+    if (!profile) return { success: false, error: 'Não foi possível validar seu perfil de acesso.' };
     return { success: true };
   };
 

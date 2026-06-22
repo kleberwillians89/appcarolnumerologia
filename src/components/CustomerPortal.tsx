@@ -68,6 +68,18 @@ const getProgressIndex = (status: DeliveryStatus) => {
   return index < 0 ? 0 : index;
 };
 
+const getYouTubeEmbedUrl = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    const videoId = parsed.hostname.includes('youtu.be')
+      ? parsed.pathname.slice(1)
+      : parsed.searchParams.get('v');
+    return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : '';
+  } catch {
+    return '';
+  }
+};
+
 export const CustomerPortal: React.FC = () => {
   const { user, profile, signOut } = useAuth();
   const { toast } = useToast();
@@ -136,6 +148,7 @@ export const CustomerPortal: React.FC = () => {
     return getProductMaterials(activeDelivery).filter((material) => material.type === 'video' && material.url);
   }, [activeDelivery]);
   const videoUrl = materials.find((material) => material.type === 'video' && material.url)?.url || productVideoUrl;
+  const youtubeEmbedUrl = getYouTubeEmbedUrl(videoUrl);
 
   useEffect(() => setVideoFailed(false), [videoUrl]);
 
@@ -191,7 +204,7 @@ export const CustomerPortal: React.FC = () => {
         telefoneNormalizado: updatedDelivery.telefoneNormalizado,
         email: updatedDelivery.email,
         produto: updatedDelivery.produto,
-        dataNascimento: updatedDelivery.dataNascimento,
+        dataNascimento: updatedDelivery.dataNascimento || '',
         status: updatedDelivery.status,
         origem: updatedDelivery.origem,
         observacoesCliente: updatedDelivery.observacoesCliente,
@@ -418,16 +431,26 @@ export const CustomerPortal: React.FC = () => {
               <h3 className="mt-4 text-xl font-bold text-white">Vídeo do produto</h3>
               {videoUrl && !videoFailed ? (
                 <div className="mt-4 overflow-hidden rounded-xl border border-[#C9A96E]/20 bg-black">
-                  <video
-                    className="aspect-video w-full"
-                    controls
-                    playsInline
-                    preload="metadata"
-                    src={videoUrl}
-                    onError={() => setVideoFailed(true)}
-                  >
-                    Seu navegador não oferece suporte ao player de vídeo.
-                  </video>
+                  {youtubeEmbedUrl ? (
+                    <iframe
+                      className="aspect-video w-full"
+                      src={youtubeEmbedUrl}
+                      title="Vídeo do produto"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video
+                      className="aspect-video w-full"
+                      controls
+                      playsInline
+                      preload="metadata"
+                      src={videoUrl}
+                      onError={() => setVideoFailed(true)}
+                    >
+                      Seu navegador não oferece suporte ao player de vídeo.
+                    </video>
+                  )}
                 </div>
               ) : (
                 <div className="mt-5 rounded-md border border-[#F8F5EF]/10 bg-[#070D1D] p-4 text-sm text-[#F8F5EF]/70">

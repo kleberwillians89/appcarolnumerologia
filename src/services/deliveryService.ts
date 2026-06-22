@@ -3,6 +3,7 @@ import { demoMode, hasSupabaseConfig } from '@/config/env';
 import { supabase } from '@/lib/supabaseClient';
 import { normalizeBrazilianPhone } from '@/utils/phoneUtils';
 import { PdfGenerationInput, PdfProduct, PdfProductKey } from './pdfDeliveryService';
+import { getCatalogProduct } from '@/config/catalogProducts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -28,7 +29,7 @@ export interface Delivery {
   produto: PdfProductKey | string;
   tipoProduto?: string | null;
   status: DeliveryStatus;
-  dataNascimento: string;
+  dataNascimento: string | null;
   linkPdf: string | null;
   pdfDataUrl?: string | null;
   fileName?: string | null;
@@ -48,7 +49,7 @@ export interface SiteLeadPayload {
   email?: string;
   produto: PdfProductKey | string;
   tipoProduto?: string | null;
-  dataNascimento: string;
+  dataNascimento: string | null;
   userId?: string | null;
   origem?: 'site' | 'google_sheets' | 'plataforma';
   observacoesCliente?: string;
@@ -237,7 +238,7 @@ export const mapDeliveryFromSupabase = (delivery: JsonRecord): Delivery => {
     produto: normalizeProduct(readValue(delivery, 'produto')),
     tipoProduto: readString(delivery, 'tipo_produto', 'tipoProduto', 'produto') || null,
     status: normalizeStatus(readValue(delivery, 'status')),
-    dataNascimento: readString(delivery, 'data_nascimento', 'dataNascimento', 'birthDate'),
+    dataNascimento: readString(delivery, 'data_nascimento', 'dataNascimento', 'birthDate') || null,
     linkPdf: readString(delivery, 'link_pdf', 'linkPdf') || null,
     pdfDataUrl: readString(delivery, 'pdf_data_url', 'pdfDataUrl') || null,
     fileName: readString(delivery, 'file_name', 'fileName') || null,
@@ -265,7 +266,7 @@ export const mapDeliveryToSupabase = (delivery: Partial<Delivery>) => {
   if ('produto' in delivery) payload.produto = delivery.produto;
   if ('tipoProduto' in delivery || 'produto' in delivery) payload.tipo_produto = delivery.tipoProduto || delivery.produto || null;
   if ('status' in delivery) payload.status = delivery.status;
-  if ('dataNascimento' in delivery) payload.data_nascimento = delivery.dataNascimento;
+  if ('dataNascimento' in delivery) payload.data_nascimento = delivery.dataNascimento || null;
   if ('linkPdf' in delivery) payload.link_pdf = delivery.linkPdf || null;
   if ('pdfDataUrl' in delivery) payload.pdf_data_url = delivery.pdfDataUrl || null;
   if ('fileName' in delivery) payload.file_name = delivery.fileName || null;
@@ -292,6 +293,14 @@ const compactDbPayload = (payload: JsonRecord) => {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined)
   );
+};
+
+const normalizeEmptyDateValues = (record?: JsonRecord): JsonRecord | undefined => {
+  if (!record) return record;
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => {
+    const looksLikeDate = /data|nascimento/i.test(key);
+    return [key, looksLikeDate && value === '' ? null : value];
+  }));
 };
 
 const logSupabaseMutationError = (operation: string, payload: JsonRecord, error: { message?: string } & JsonRecord) => {
@@ -346,6 +355,8 @@ const getInitialStatus = (payload: SiteLeadPayload): DeliveryStatus => {
 };
 
 export const getProductLabel = (produto: PdfProductKey | PdfProduct | string) => {
+  const catalogProduct = getCatalogProduct(produto);
+  if (catalogProduct) return catalogProduct.name;
   if (produto === 'desvende_mapa') return 'Desvende seu Mapa';
   if (produto === 'nome_profissional_marca') return 'Nome Profissional/Marca';
   if (produto === 'data_cesarea') return 'Data para Cesárea';
@@ -427,6 +438,8 @@ export const deliveryService = {
   async createDelivery(input: DeliveryCreateInput): Promise<Delivery> {
     const delivery = {
       ...input,
+      dataNascimento: input.dataNascimento || null,
+      dadosCliente: normalizeEmptyDateValues(input.dadosCliente),
       dataCriacao: input.dataCriacao || new Date().toISOString(),
       dataEnvio: input.dataEnvio || null,
       telefoneNormalizado: input.telefoneNormalizado || normalizeBrazilianPhone(input.telefone),

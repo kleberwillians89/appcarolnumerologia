@@ -9,6 +9,8 @@ import AppLayout from './components/AppLayout';
 import LoginPage from './components/LoginPage';
 import { CustomerPortal } from './components/CustomerPortal';
 import { ProductCatalogPage } from './components/ProductCatalogPage';
+import { ProductIntakePage } from './components/ProductIntakePage';
+import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { SharedProfileView } from './components/SharedProfileView';
 import NotFound from './pages/NotFound';
 import { AppProvider } from './contexts/AppContext';
@@ -81,11 +83,11 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
   const { user, role, loading } = useAuth();
 
   if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/admin/login" replace />;
   if (role === 'admin') return children;
   if (role === 'cliente') return <Navigate to="/loja" replace />;
 
-  return <Navigate to="/login" replace />;
+  return <Navigate to="/admin/login" replace />;
 }
 
 function RequireCliente({ children }: { children: JSX.Element }) {
@@ -124,7 +126,17 @@ function AppRoutes() {
         }
       />
 
+      <Route
+        path="/admin/login"
+        element={
+          <RedirectIfAuthenticated>
+            <LoginPage adminOnly />
+          </RedirectIfAuthenticated>
+        }
+      />
+
       <Route path="/" element={<RoleRedirect />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route
         path="/entregas"
@@ -151,6 +163,15 @@ function AppRoutes() {
         element={
           <RequireCliente>
             <CustomerPortal />
+          </RequireCliente>
+        }
+      />
+
+      <Route
+        path="/contratar/:productId"
+        element={
+          <RequireCliente>
+            <ProductIntakePage />
           </RequireCliente>
         }
       />

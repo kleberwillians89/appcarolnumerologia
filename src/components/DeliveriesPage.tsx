@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, CircleCheckBig, Clock3, Download, FileText, Loader2, MessageCircle, RefreshCw, Search, Send, Sparkles, Users } from 'lucide-react';
+import { CheckCircle2, CircleCheckBig, Clock3, Download, Eye, FileText, Loader2, MessageCircle, RefreshCw, Search, Send, Sparkles, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -83,6 +83,11 @@ const formatDate = (value?: string | null) => {
   return new Intl.DateTimeFormat('pt-BR').format(new Date(value));
 };
 
+const humanizeKey = (key: string) => key
+  .replace(/([a-z])([A-Z])/g, '$1 $2')
+  .replace(/_/g, ' ')
+  .replace(/^./, (letter) => letter.toUpperCase());
+
 export const DeliveriesPage: React.FC = () => {
   const { toast } = useToast();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -92,6 +97,7 @@ export const DeliveriesPage: React.FC = () => {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [whatsAppDelivery, setWhatsAppDelivery] = useState<Delivery | null>(null);
   const [whatsAppMessage, setWhatsAppMessage] = useState('');
+  const [detailsDelivery, setDetailsDelivery] = useState<Delivery | null>(null);
   const [search, setSearch] = useState('');
 
   const loadDeliveries = useCallback(async () => {
@@ -180,13 +186,13 @@ export const DeliveriesPage: React.FC = () => {
         ? generateDemoPdf({
             clientName: delivery.nome,
             productTitle: getProductLabel(delivery.produto),
-            birthDate: delivery.dataNascimento,
+            birthDate: delivery.dataNascimento || '',
           })
         : await generatePdfForProduct({
             produto: getPdfTemplateKey(delivery.produto),
             cliente: {
               nome: delivery.nome,
-              dataNascimento: delivery.dataNascimento,
+              dataNascimento: delivery.dataNascimento || '',
               telefone: getFormattedPhone(delivery),
               email: delivery.email,
             },
@@ -314,6 +320,15 @@ export const DeliveriesPage: React.FC = () => {
 
   const renderActions = (delivery: Delivery) => (
     <div className="flex min-w-[210px] flex-wrap justify-stretch gap-2 xl:justify-end">
+      <Button
+        variant="outline"
+        className="h-10 flex-1 border-white/20 bg-transparent text-white hover:bg-white/10 xl:flex-none"
+        onClick={() => setDetailsDelivery(delivery)}
+      >
+        <Eye className="mr-2 h-4 w-4" />
+        Ver dados
+      </Button>
+
       <Button
         className="h-10 w-full bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-[#111827] disabled:text-[#F8F5EF]/40 xl:w-auto"
         onClick={() => handleMarkAsPaid(delivery)}
@@ -565,6 +580,42 @@ export const DeliveriesPage: React.FC = () => {
               Abrir WhatsApp
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!detailsDelivery} onOpenChange={(open) => !open && setDetailsDelivery(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto border-[#C9A96E]/30 bg-[#0B1426] text-[#F8F5EF] sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Dados do pedido</DialogTitle>
+          </DialogHeader>
+          {detailsDelivery && (() => {
+            const data = detailsDelivery.dadosCliente || {};
+            const labels = data.campoLabels && typeof data.campoLabels === 'object' && !Array.isArray(data.campoLabels)
+              ? data.campoLabels as Record<string, unknown>
+              : {};
+            return (
+              <div className="space-y-5">
+                <div className="grid gap-3 rounded-xl border border-white/10 bg-[#07101d] p-4 sm:grid-cols-2">
+                  <div><p className="text-xs text-white/45">Cliente</p><p className="mt-1 font-semibold text-white">{detailsDelivery.nome}</p></div>
+                  <div><p className="text-xs text-white/45">Produto</p><p className="mt-1 font-semibold text-white">{getProductLabel(detailsDelivery.produto)}</p></div>
+                  <div><p className="text-xs text-white/45">WhatsApp</p><p className="mt-1 text-white/80">{getFormattedPhone(detailsDelivery)}</p></div>
+                  <div><p className="text-xs text-white/45">E-mail</p><p className="mt-1 break-all text-white/80">{detailsDelivery.email || 'Não informado'}</p></div>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-white">Briefing do serviço</h4>
+                  <dl className="mt-3 grid gap-3">
+                    {Object.entries(data).filter(([key]) => !['campoLabels', 'pdfKind'].includes(key)).map(([key, value]) => (
+                      <div key={key} className="rounded-lg border border-white/10 p-3">
+                        <dt className="text-xs font-semibold text-[#C9A96E]">{typeof labels[key] === 'string' ? String(labels[key]) : humanizeKey(key)}</dt>
+                        <dd className="mt-1 whitespace-pre-wrap text-sm text-white/75">{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value || 'Não informado')}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+                <div><p className="text-xs text-white/45">Status</p><Badge className={`${deliveryStatusClassName[detailsDelivery.status]} mt-2 border`}>{deliveryStatusLabel[detailsDelivery.status]}</Badge></div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

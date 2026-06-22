@@ -13,3 +13,4 @@ export const enableWhatsappMock = import.meta.env.VITE_ENABLE_WHATSAPP_MOCK !== 
 export const appUrl = import.meta.env.VITE_APP_URL || 'https://app.carolgraber.com.br';
 export const whatsappUrl = import.meta.env.VITE_WHATSAPP_URL || '';
 export const carolWhatsappNumber = import.meta.env.VITE_CAROL_WHATSAPP_NUMBER || '5511976726050';
+export const carolCalendarUrl = import.meta.env.VITE_CAROL_CALENDAR_URL || '';

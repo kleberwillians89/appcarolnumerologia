@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { demoMode, hasSupabaseConfig } from '@/config/env';
 import { useAuth } from '../contexts/AuthContext';
 import { premiumClasses } from '@/config/premiumClasses';
+import { Link } from 'react-router-dom';
+import { supabase } from '@/lib/supabaseClient';
 
 const BG_URL =
   'https://d64gsuwffb70l.cloudfront.net/6877ab8bbdf6db9dc0251519_1760768485419_3523f9cb.png';
@@ -9,21 +11,22 @@ const BG_URL =
 const HEADER_IMG_URL =
   'https://d64gsuwffb70l.cloudfront.net/6877ab8bbdf6db9dc0251519_1760982979637_3171a8f6.png';
 
-export default function LoginPage() {
+export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }) {
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { signIn, signUp, authError } = useAuth();
+  const [resetSent, setResetSent] = useState(false);
+  const { signIn, signUp, authError, refreshProfile } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
-    const result = mode === 'signIn'
+    const result = mode === 'signIn' || adminOnly
       ? await signIn(email, password)
       : await signUp(email, password, { full_name: name, name, role: 'cliente' });
 
@@ -32,6 +35,30 @@ export default function LoginPage() {
     }
 
     setIsSubmitting(false);
+  };
+
+  const handleForgotPassword = async () => {
+    setError('');
+    setResetSent(false);
+    if (!email.trim()) {
+      setError('Informe seu e-mail para receber o link de redefinição.');
+      return;
+    }
+    if (!supabase) {
+      setError('O serviço de acesso não está disponível agora. Tente novamente mais tarde.');
+      return;
+    }
+
+    sessionStorage.setItem('carol_password_recovery_return', adminOnly ? '/admin/login' : '/login');
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/#/reset-password`,
+    });
+    if (resetError) {
+      console.error('[LoginPage] Falha ao solicitar redefinição', resetError.message);
+      setError('Não foi possível enviar o link agora. Confira o e-mail e tente novamente.');
+      return;
+    }
+    setResetSent(true);
   };
 
   return (
@@ -64,7 +91,7 @@ export default function LoginPage() {
           <p className="mt-2 text-yellow-400 font-bold tracking-[0.35em]">NUMEROLOGIA</p>
           <div className="mt-4 h-[2px] w-28 mx-auto bg-gradient-to-r from-transparent via-yellow-400 to-transparent" />
           <p className="mt-4 text-slate-300">
-            {mode === 'signIn' ? 'Entre para acessar a plataforma' : 'Crie seu acesso de cliente'}
+            {adminOnly ? 'Acesso exclusivo da Carol' : mode === 'signIn' ? 'Entre para acessar sua área' : 'Crie seu acesso de cliente'}
           </p>
         </div>
 
@@ -81,7 +108,7 @@ export default function LoginPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {mode === 'signUp' && (
+          {mode === 'signUp' && !adminOnly && (
             <div>
               <label className={`block text-sm font-medium mb-2 ${premiumClasses.label}`}>Nome completo</label>
               <input
@@ -123,7 +150,18 @@ export default function LoginPage() {
 
           {(error || authError) && (
             <div role="alert" className="rounded-xl border border-red-500/50 bg-red-500/15 px-4 py-3 text-red-200 text-sm">
-              {error || authError}
+              <p>{error || authError}</p>
+              {authError?.includes('perfil') && (
+                <button type="button" className="mt-3 font-semibold text-yellow-200 underline" onClick={() => void refreshProfile()}>
+                  Tentar novamente
+                </button>
+              )}
+            </div>
+          )}
+
+          {resetSent && (
+            <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+              Enviamos um link para redefinir sua senha.
             </div>
           )}
 
@@ -132,22 +170,27 @@ export default function LoginPage() {
             disabled={isSubmitting}
             className={`w-full rounded-xl py-3.5 shadow-xl shadow-[#C9A96E]/20 disabled:opacity-60 active:scale-[0.99] transition ${premiumClasses.primaryButton}`}
           >
-            {isSubmitting ? 'Aguarde...' : mode === 'signIn' ? 'Entrar' : 'Criar acesso'}
+            {isSubmitting ? 'Aguarde...' : adminOnly ? 'Entrar no Centro de Comando' : mode === 'signIn' ? 'Entrar' : 'Criar acesso'}
           </button>
         </form>
 
         <div className="mt-5 flex flex-col gap-2 text-center text-sm">
-          <button
-            type="button"
-            onClick={() => {
-              setMode(mode === 'signIn' ? 'signUp' : 'signIn');
-              setError('');
-            }}
-            className="text-yellow-300 hover:text-yellow-200"
-          >
-            {mode === 'signIn' ? 'Criar acesso, se for cliente' : 'Já tenho acesso'}
-          </button>
-          <button type="button" className="text-slate-400 cursor-not-allowed" disabled>
+          {!adminOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === 'signIn' ? 'signUp' : 'signIn');
+                setError('');
+              }}
+              className="text-yellow-300 hover:text-yellow-200"
+            >
+              {mode === 'signIn' ? 'Criar acesso, se for cliente' : 'Já tenho acesso'}
+            </button>
+          )}
+          <Link className="text-yellow-300 hover:text-yellow-200" to={adminOnly ? '/login' : '/admin/login'}>
+            {adminOnly ? 'Voltar para o acesso de clientes' : 'Acesso Carol / Admin'}
+          </Link>
+          <button type="button" className="text-slate-300 hover:text-white" onClick={() => void handleForgotPassword()}>
             Esqueci minha senha
           </button>
         </div>

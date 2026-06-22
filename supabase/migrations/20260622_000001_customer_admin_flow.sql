@@ -95,6 +95,7 @@ language sql
 stable
 security definer
 set search_path = public
+set row_security = off
 as $$
   select exists (
     select 1 from public.profiles
@@ -149,15 +150,17 @@ alter table public.deliveries enable row level security;
 alter table public.pdf_files enable row level security;
 
 drop policy if exists "profiles_select_own_or_admin" on public.profiles;
-create policy "profiles_select_own_or_admin" on public.profiles
+drop policy if exists "profiles_select_own" on public.profiles;
+create policy "profiles_select_own" on public.profiles
   for select to authenticated
-  using (user_id = auth.uid() or public.is_admin());
+  using (user_id = auth.uid());
 
 drop policy if exists "profiles_update_own_or_admin" on public.profiles;
-create policy "profiles_update_own_or_admin" on public.profiles
+drop policy if exists "profiles_update_own" on public.profiles;
+create policy "profiles_update_own" on public.profiles
   for update to authenticated
-  using (user_id = auth.uid() or public.is_admin())
-  with check ((user_id = auth.uid() and role = 'cliente') or public.is_admin());
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid() and role = 'cliente');
 
 drop policy if exists "deliveries_select_own_or_admin" on public.deliveries;
 create policy "deliveries_select_own_or_admin" on public.deliveries

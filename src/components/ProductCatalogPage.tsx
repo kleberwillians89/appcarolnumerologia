@@ -1,69 +1,30 @@
 import React, { useState } from 'react';
-import { ArrowRight, Check, Loader2, LogOut, MoonStar, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, CalendarDays, Check, LogOut, MessageCircle, MoonStar, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { CATALOG_PRODUCTS, CatalogProduct } from '@/config/catalogProducts';
-import { deliveryService } from '@/services/deliveryService';
+import { CATALOG_GROUPS, CATALOG_PRODUCTS, CatalogProduct } from '@/config/catalogProducts';
+import { carolCalendarUrl, carolWhatsappNumber, whatsappUrl } from '@/config/env';
 
-interface ProductCatalogPageProps {
-  onOrderCreated?: () => void | Promise<void>;
-}
-
-export const ProductCatalogPage: React.FC<ProductCatalogPageProps> = ({ onOrderCreated }) => {
-  const { user, profile, signOut } = useAuth();
-  const { toast } = useToast();
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+export const ProductCatalogPage: React.FC = () => {
+  const { signOut } = useAuth();
   const navigate = useNavigate();
+  const [unavailableProduct, setUnavailableProduct] = useState<string | null>(null);
+  const whatsappHref = whatsappUrl || `https://wa.me/${carolWhatsappNumber}`;
 
-  const handleChooseProduct = async (product: CatalogProduct) => {
-    if (!user?.id) return;
-    setSelectedProduct(product.key);
-
-    try {
-      await deliveryService.createDelivery({
-        userId: user.id,
-        nome: profile?.full_name || profile?.name || user.email || 'Cliente',
-        telefone: '',
-        telefoneNormalizado: '',
-        email: profile?.email || user.email || '',
-        produto: product.key,
-        tipoProduto: product.name,
-        status: 'AGUARDANDO_PAGAMENTO',
-        dataNascimento: '',
-        linkPdf: null,
-        pdfDataUrl: null,
-        fileName: null,
-        pdfStoragePath: null,
-        origem: 'plataforma',
-        observacoesCliente: '',
-        observacoesCarol: 'Pedido criado pelo catálogo de produtos.',
-        dadosNumerologicos: {},
-        dadosCliente: {
-          produto: product.key,
-          produtoNome: product.name,
-          preco: product.price,
-          pdfTemplateKey: product.pdfTemplateKey,
-          etapa: 'aguardando_pagamento',
-          origem: 'catalogo',
-        },
-      });
-
-      toast({
-        title: 'Seu pedido foi criado',
-        description: 'Você será levado à Minha Área para acompanhar o próximo passo.',
-      });
-      await onOrderCreated?.();
-      navigate('/portal');
-    } catch (error) {
-      toast({
-        title: 'Não foi possível criar seu pedido',
-        description: error instanceof Error ? error.message : 'Tente novamente em instantes.',
-        variant: 'destructive',
-      });
-      setSelectedProduct(null);
+  const handleProductAction = (product: CatalogProduct) => {
+    setUnavailableProduct(null);
+    if (product.journeyType === 'auto_contratacao') {
+      navigate(`/contratar/${product.key}`);
+      return;
     }
+
+    const calendarUrl = product.calendarUrl || carolCalendarUrl;
+    if (calendarUrl) {
+      window.open(calendarUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setUnavailableProduct(product.key);
   };
 
   return (
@@ -104,27 +65,36 @@ export const ProductCatalogPage: React.FC<ProductCatalogPageProps> = ({ onOrderC
           </div>
         </section>
 
-        <section className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {CATALOG_PRODUCTS.map((product, index) => (
+        <div className="mt-14 space-y-14">
+          {CATALOG_GROUPS.map((group) => (
+            <section key={group}>
+              <div className="mb-6 flex items-center gap-4">
+                <h2 className="shrink-0 text-xl font-semibold text-white sm:text-2xl">{group}</h2>
+                <div className="h-px flex-1 bg-gradient-to-r from-[#d7b878]/40 to-transparent" />
+              </div>
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {CATALOG_PRODUCTS.filter((product) => product.group === group).map((product) => (
             <article
               key={product.key}
-              className={`group flex min-w-0 flex-col rounded-3xl border bg-[#0b1828]/90 p-5 shadow-2xl shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-[#d7b878]/45 sm:p-6 ${
-                index === 0 ? 'border-[#d7b878]/45 xl:ring-1 xl:ring-[#d7b878]/20' : 'border-white/10'
-              }`}
+              className="group flex min-w-0 flex-col rounded-3xl border border-white/10 bg-[#0b1828]/90 p-5 shadow-2xl shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-[#d7b878]/45 sm:p-6"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#d7b878]/25 bg-[#d7b878]/10">
                   <Sparkles className="h-5 w-5 text-[#e4c98e]" />
                 </div>
-                {index === 0 && <span className="rounded-full bg-[#d7b878] px-3 py-1 text-[11px] font-bold text-[#06101d]">MAIS ESCOLHIDO</span>}
+                <span className="rounded-full border border-[#d7b878]/25 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#d7b878]">{product.category}</span>
               </div>
 
               <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-[#d7b878]">{product.shortName}</p>
               <h2 className="mt-2 break-words text-2xl font-semibold text-white">{product.name}</h2>
               <p className="mt-3 min-h-[72px] text-sm leading-6 text-[#f8f5ef]/65">{product.description}</p>
+              <div className="mt-4 space-y-2 rounded-2xl bg-white/[0.03] p-4 text-xs leading-5 text-[#f8f5ef]/60">
+                <p><span className="font-semibold text-[#f8f5ef]/85">Formato:</span> {product.format}</p>
+                <p><span className="font-semibold text-[#f8f5ef]/85">Entrega:</span> {product.delivery}</p>
+              </div>
 
               <ul className="mt-5 space-y-3 border-t border-white/10 pt-5">
-                {product.includes.map((item) => (
+                {product.benefits.map((item) => (
                   <li key={item} className="flex min-w-0 items-start gap-3 text-sm text-[#f8f5ef]/78">
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/12">
                       <Check className="h-3 w-3 text-emerald-400" />
@@ -139,16 +109,26 @@ export const ProductCatalogPage: React.FC<ProductCatalogPageProps> = ({ onOrderC
                 <p className="mt-1 text-3xl font-semibold text-[#e4c98e]">{product.price}</p>
                 <Button
                   className="mt-5 min-h-12 h-auto w-full whitespace-normal break-words rounded-xl bg-[#d7b878] px-4 py-3 text-center font-bold leading-5 text-[#06101d] hover:bg-[#e4c98e]"
-                  onClick={() => handleChooseProduct(product)}
-                  disabled={selectedProduct !== null}
+                  onClick={() => handleProductAction(product)}
                 >
-                  {selectedProduct === product.key ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4 shrink-0" />}
-                  {selectedProduct === product.key ? 'Criando seu pedido...' : 'Quero contratar'}
+                  {product.journeyType === 'atendimento' ? <CalendarDays className="mr-2 h-4 w-4 shrink-0" /> : <ArrowRight className="mr-2 h-4 w-4 shrink-0" />}
+                  {product.buttonLabel}
                 </Button>
+                {unavailableProduct === product.key && (
+                  <div className="mt-3 rounded-xl border border-amber-300/30 bg-amber-300/10 p-3 text-sm leading-5 text-amber-100">
+                    <p>Agenda da Carol indisponível no momento. Fale com ela pelo WhatsApp.</p>
+                    <Button asChild variant="outline" className="mt-3 h-10 w-full border-emerald-400/35 bg-transparent text-emerald-100 hover:bg-emerald-400/10">
+                      <a href={whatsappHref} target="_blank" rel="noreferrer"><MessageCircle className="mr-2 h-4 w-4" />Falar com a Carol</a>
+                    </Button>
+                  </div>
+                )}
               </div>
             </article>
           ))}
-        </section>
+              </div>
+            </section>
+          ))}
+        </div>
 
         <section className="mx-auto mt-14 max-w-4xl rounded-3xl border border-[#d7b878]/20 bg-[#0b1828]/70 p-6 text-center sm:p-8">
           <p className="text-xs font-bold tracking-[0.24em] text-[#d7b878]">COMO FUNCIONA</p>

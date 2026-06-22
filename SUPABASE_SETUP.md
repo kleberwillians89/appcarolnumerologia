@@ -15,6 +15,12 @@ A estrutura, o gatilho de criação de perfil, a função segura do formulário 
 
 `supabase/migrations/20260622_000001_customer_admin_flow.sql`
 
+Para projetos que já receberam a migration anterior e apresentam `infinite recursion detected in policy for relation "profiles"`, execute também:
+
+`supabase/migrations/20260623_000001_fix_profiles_rls_recursion.sql`
+
+Essa correção remove `is_admin()` das policies da própria tabela `profiles` e mantém a função `SECURITY DEFINER` com RLS desligada apenas durante a checagem de role.
+
 ## Aplicação
 
 1. Execute primeiro `supabase/schema.sql` em um projeto novo.
@@ -41,3 +47,20 @@ where email = 'EMAIL_DA_CAROL';
 ## Demonstração local
 
 `VITE_DEMO_MODE=true` ativa dados locais somente para uma apresentação sem Supabase. Nesse modo, e-mails contendo `carol` ou `admin` entram como admin; outros e-mails entram como cliente. Esse modo não pode ser habilitado em produção.
+
+## URLs de autenticação
+
+Em **Authentication > URL Configuration**, configure:
+
+- Site URL: `https://appcarolnumerologia.onrender.com`
+- Redirect URL: `https://appcarolnumerologia.onrender.com/**`
+- Redirect URL: `http://localhost:5173/**`
+- Redirect URL: `http://localhost:3000/**`
+
+O app solicita recovery com `/#/reset-password` e também normaliza links legados que chegam como fragmentos `access_token` / `refresh_token` antes de iniciar o `HashRouter`.
+
+## Jornada comercial
+
+- `auto_contratacao`: abre `/#/contratar/:productId`; o pedido só é criado após o briefing.
+- `atendimento`: abre `VITE_CAROL_CALENDAR_URL` em nova aba e não cria registro em `deliveries`.
+- Sem agenda configurada, a loja oferece contato usando `VITE_WHATSAPP_URL` ou `VITE_CAROL_WHATSAPP_NUMBER`.
