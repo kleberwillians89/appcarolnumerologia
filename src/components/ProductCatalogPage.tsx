@@ -1,70 +1,33 @@
 import React, { useState } from 'react';
-import { Loader2, ShoppingBag } from 'lucide-react';
+import { ArrowRight, Check, Loader2, LogOut, MoonStar, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { CATALOG_PRODUCTS, CatalogProduct } from '@/config/catalogProducts';
 import { deliveryService } from '@/services/deliveryService';
-import { premiumClasses } from '@/config/premiumClasses';
-
-type CatalogProduct = {
-  key: string;
-  name: string;
-  description: string;
-  price: string;
-};
-
-const products: CatalogProduct[] = [
-  {
-    key: 'desvende_mapa',
-    name: 'Desvende seu Mapa',
-    description: 'Leitura numerológica personalizada para compreender essência, talentos e caminhos.',
-    price: 'R$ 197,00',
-  },
-  {
-    key: 'nome_profissional_marca',
-    name: 'Nome Profissional/Marca',
-    description: 'Análise para alinhar assinatura profissional, marca ou posicionamento energético.',
-    price: 'R$ 297,00',
-  },
-  {
-    key: 'data_cesarea',
-    name: 'Data para Cesárea',
-    description: 'Estudo numerológico para apoiar a escolha de uma data de nascimento favorável.',
-    price: 'R$ 347,00',
-  },
-  {
-    key: 'nome_bebe',
-    name: 'Nome do Bebê',
-    description: 'Avaliação de nomes para apoiar uma escolha harmônica e significativa.',
-    price: 'R$ 297,00',
-  },
-  {
-    key: 'abertura_empresa',
-    name: 'Abertura de Empresa',
-    description: 'Análise de datas e vibração numerológica para novos ciclos empresariais.',
-    price: 'R$ 397,00',
-  },
-];
 
 interface ProductCatalogPageProps {
-  onOrderCreated?: () => void;
+  onOrderCreated?: () => void | Promise<void>;
 }
 
 export const ProductCatalogPage: React.FC<ProductCatalogPageProps> = ({ onOrderCreated }) => {
   const { user, profile, signOut } = useAuth();
   const { toast } = useToast();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const handleChooseProduct = async (product: CatalogProduct) => {
+    if (!user?.id) return;
     setSelectedProduct(product.key);
+
     try {
       await deliveryService.createDelivery({
-        userId: user?.id || null,
-        nome: profile?.full_name || profile?.name || user?.email || 'Cliente',
+        userId: user.id,
+        nome: profile?.full_name || profile?.name || user.email || 'Cliente',
         telefone: '',
         telefoneNormalizado: '',
-        email: profile?.email || user?.email || '',
+        email: profile?.email || user.email || '',
         produto: product.key,
         tipoProduto: product.name,
         status: 'AGUARDANDO_PAGAMENTO',
@@ -81,72 +44,128 @@ export const ProductCatalogPage: React.FC<ProductCatalogPageProps> = ({ onOrderC
           produto: product.key,
           produtoNome: product.name,
           preco: product.price,
+          pdfTemplateKey: product.pdfTemplateKey,
+          etapa: 'aguardando_pagamento',
           origem: 'catalogo',
         },
       });
 
       toast({
-        title: 'Pedido registrado',
-        description: 'Aguarde a confirmação do pagamento para liberar o formulário.',
+        title: 'Seu pedido foi criado',
+        description: 'Você será levado à Minha Área para acompanhar o próximo passo.',
       });
-      onOrderCreated?.();
+      await onOrderCreated?.();
+      navigate('/portal');
     } catch (error) {
       toast({
-        title: 'Não foi possível registrar o pedido',
+        title: 'Não foi possível criar seu pedido',
         description: error instanceof Error ? error.message : 'Tente novamente em instantes.',
         variant: 'destructive',
       });
-    } finally {
       setSelectedProduct(null);
     }
   };
 
   return (
-    <div className={premiumClasses.page}>
-      <header className={premiumClasses.header}>
-        <div className="container mx-auto flex flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.3em] text-[#C9A96E]">CAROL GRABER</p>
-            <h1 className="text-2xl font-bold text-white">Catálogo de Produtos</h1>
+    <div className="min-h-screen overflow-x-hidden bg-[#06101d] text-[#f8f5ef]">
+      <div className="pointer-events-none fixed inset-0 opacity-70" aria-hidden>
+        <div className="absolute -left-40 -top-48 h-[32rem] w-[32rem] rounded-full bg-[#164c59]/25 blur-3xl" />
+        <div className="absolute -right-40 top-28 h-[30rem] w-[30rem] rounded-full bg-[#c9a96e]/10 blur-3xl" />
+      </div>
+
+      <header className="relative z-20 border-b border-white/10 bg-[#06101d]/85 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold tracking-[0.32em] text-[#d7b878] sm:text-xs">CAROL GRABER</p>
+            <p className="truncate text-lg font-semibold text-white sm:text-xl">Numerologia com propósito</p>
           </div>
-          <Button variant="outline" className={`${premiumClasses.secondaryButton} w-full sm:w-auto`} onClick={signOut}>
-            Sair
+          <Button variant="ghost" className="h-11 shrink-0 px-3 text-[#f8f5ef]/75 hover:bg-white/10 hover:text-white" onClick={signOut}>
+            <LogOut className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Sair</span>
           </Button>
         </div>
       </header>
 
-      <main className="container mx-auto space-y-6 px-4 py-8">
-        <div>
-          <h2 className="text-2xl font-bold text-white">Escolha seu produto</h2>
-          <p className={`mt-2 max-w-2xl ${premiumClasses.muted}`}>
-            Selecione o produto desejado para registrar seu pedido. O formulário será liberado após confirmação manual do pagamento.
+      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-10 sm:px-6 sm:pt-16">
+        <section className="mx-auto max-w-4xl text-center">
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[#d7b878]/35 bg-[#d7b878]/10">
+            <MoonStar className="h-6 w-6 text-[#e4c98e]" />
+          </div>
+          <p className="text-xs font-bold tracking-[0.28em] text-[#d7b878]">UMA LEITURA FEITA PARA VOCÊ</p>
+          <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
+            Clareza para compreender<br className="hidden sm:block" /> sua essência e seus ciclos
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-[#f8f5ef]/68 sm:text-lg">
+            Escolha a análise que combina com seu momento. A Carol acompanha cada etapa e prepara sua entrega de forma personalizada.
           </p>
-        </div>
+          <div className="mt-7 flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm text-[#f8f5ef]/70">
+            <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-400" /> Acompanhamento humano</span>
+            <span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-[#d7b878]" /> Material personalizado</span>
+          </div>
+        </section>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {products.map((product) => (
-            <Card key={product.key} className={premiumClasses.card}>
-              <CardHeader>
-                <CardTitle className="flex items-start gap-3 text-white">
-                  <ShoppingBag className="mt-1 h-5 w-5 shrink-0 text-[#C9A96E]" />
-                  {product.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex h-full flex-col gap-5">
-                <p className={premiumClasses.muted}>{product.description}</p>
-                <p className="text-xl font-bold text-[#C9A96E]">{product.price}</p>
+        <section className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {CATALOG_PRODUCTS.map((product, index) => (
+            <article
+              key={product.key}
+              className={`group flex min-w-0 flex-col rounded-3xl border bg-[#0b1828]/90 p-5 shadow-2xl shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-[#d7b878]/45 sm:p-6 ${
+                index === 0 ? 'border-[#d7b878]/45 xl:ring-1 xl:ring-[#d7b878]/20' : 'border-white/10'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#d7b878]/25 bg-[#d7b878]/10">
+                  <Sparkles className="h-5 w-5 text-[#e4c98e]" />
+                </div>
+                {index === 0 && <span className="rounded-full bg-[#d7b878] px-3 py-1 text-[11px] font-bold text-[#06101d]">MAIS ESCOLHIDO</span>}
+              </div>
+
+              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-[#d7b878]">{product.shortName}</p>
+              <h2 className="mt-2 break-words text-2xl font-semibold text-white">{product.name}</h2>
+              <p className="mt-3 min-h-[72px] text-sm leading-6 text-[#f8f5ef]/65">{product.description}</p>
+
+              <ul className="mt-5 space-y-3 border-t border-white/10 pt-5">
+                {product.includes.map((item) => (
+                  <li key={item} className="flex min-w-0 items-start gap-3 text-sm text-[#f8f5ef]/78">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/12">
+                      <Check className="h-3 w-3 text-emerald-400" />
+                    </span>
+                    <span className="min-w-0 break-words">{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-auto pt-7">
+                <p className="text-sm text-[#f8f5ef]/50">Investimento</p>
+                <p className="mt-1 text-3xl font-semibold text-[#e4c98e]">{product.price}</p>
                 <Button
-                  className={`${premiumClasses.primaryButton} mt-auto w-full`}
+                  className="mt-5 min-h-12 h-auto w-full whitespace-normal break-words rounded-xl bg-[#d7b878] px-4 py-3 text-center font-bold leading-5 text-[#06101d] hover:bg-[#e4c98e]"
                   onClick={() => handleChooseProduct(product)}
-                  disabled={selectedProduct === product.key}
+                  disabled={selectedProduct !== null}
                 >
-                  {selectedProduct === product.key && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Escolher este Produto
+                  {selectedProduct === product.key ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4 shrink-0" />}
+                  {selectedProduct === product.key ? 'Criando seu pedido...' : 'Quero contratar'}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </article>
           ))}
-        </div>
+        </section>
+
+        <section className="mx-auto mt-14 max-w-4xl rounded-3xl border border-[#d7b878]/20 bg-[#0b1828]/70 p-6 text-center sm:p-8">
+          <p className="text-xs font-bold tracking-[0.24em] text-[#d7b878]">COMO FUNCIONA</p>
+          <div className="mt-6 grid gap-6 text-left sm:grid-cols-3">
+            {['Escolha sua análise', 'Acompanhe o pagamento', 'Receba sua entrega'].map((title, index) => (
+              <div key={title} className="flex gap-3 sm:block">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#d7b878]/35 text-sm font-bold text-[#d7b878]">{index + 1}</span>
+                <div>
+                  <h3 className="sm:mt-3 font-semibold text-white">{title}</h3>
+                  <p className="mt-1 text-sm leading-6 text-[#f8f5ef]/60">
+                    {index === 0 ? 'Selecione o produto ideal para seu momento.' : index === 1 ? 'A Carol confirma e libera seus dados.' : 'Seu PDF ficará disponível na Minha Área.'}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       </main>
     </div>
   );

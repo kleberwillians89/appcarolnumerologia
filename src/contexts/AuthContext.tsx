@@ -1,7 +1,7 @@
-import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { DEV_MODE } from '@/config/devMode';
-import { hasSupabaseConfig } from '@/config/env';
+import { demoMode, hasSupabaseConfig } from '@/config/env';
 import { supabase } from '@/lib/supabaseClient';
 
 export type AppRole = 'admin' | 'cliente';
@@ -15,8 +15,10 @@ export interface AppProfile {
   role: AppRole;
   created_at?: string | null;
   updated_at?: string | null;
-  [key: string]: any;
+  [key: string]: unknown;
 }
+
+type AuthMetadata = Record<string, unknown>;
 
 interface LegacyUser {
   id?: string;
@@ -33,7 +35,7 @@ interface AuthContextType {
   loading: boolean;
   authError: string | null;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signUp: (email: string, password: string, metadata?: Record<string, any>) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, metadata?: AuthMetadata) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<AppProfile | null>;
   login: (email: string, password: string) => Promise<boolean>;
@@ -50,6 +52,20 @@ type AuthState = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const AUTH_SAFETY_TIMEOUT_MS = 3000;
+
+const getDemoUserId = (email: string) => {
+  const normalized = email.trim().toLowerCase();
+  let hash = 0;
+  for (let index = 0; index < normalized.length; index += 1) hash = ((hash << 5) - hash + normalized.charCodeAt(index)) | 0;
+  return `demo-${Math.abs(hash)}`;
+};
+
+const getDemoRole = (email: string): AppRole => /(^|[.@+_-])(carol|admin)([.@+_-]|$)/i.test(email) ? 'admin' : 'cliente';
+
+const getMetadataName = (metadata: AuthMetadata, fallback: string) => {
+  const value = metadata.full_name || metadata.name;
+  return typeof value === 'string' && value.trim() ? value : fallback;
+};
 
 const getUserDisplayName = (user: User | LegacyUser) => {
   if ('name' in user && user.name) return user.name;
@@ -198,10 +214,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState((current) => ({ ...current, loading: true, authError: null }));
 
     if (!supabase || !hasSupabaseConfig) {
-      if (DEV_MODE) {
-        const devUser = { id: 'dev-user', email, name: 'Carol Graber' };
-        const profile = createProfile(devUser, 'admin');
-        setState({ user: devUser, profile, role: 'admin', loading: false, authError: null });
+      if (DEV_MODE || demoMode) {
+        const role = getDemoRole(email);
+        const devUser = { id: getDemoUserId(email), email, name: role === 'admin' ? 'Carol Graber' : email.split('@')[0] };
+        const profile = createProfile(devUser, role);
+        setState({ user: devUser, profile, role, loading: false, authError: null });
         return { success: true };
       }
 
@@ -220,8 +237,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   };
 
-  const signUp = async (email: string, password: string, metadata: Record<string, any> = {}) => {
+  const signUp = async (email: string, password: string, metadata: AuthMetadata = {}) => {
     setState((current) => ({ ...current, loading: true, authError: null }));
+
+    if ((!supabase || !hasSupabaseConfig) && demoMode) {
+      const devUser = { id: getDemoUserId(email), email, name: getMetadataName(metadata, email.split('@')[0]) };
+      const profile = createProfile(devUser, 'cliente');
+      setState({ user: devUser, profile, role: 'cliente', loading: false, authError: null });
+      return { success: true };
+    }
 
     if (!supabase || !hasSupabaseConfig) {
       const error = 'Supabase não configurado. Configure o .env.local antes de criar acessos.';
@@ -240,21 +264,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: error.message };
     }
 
-    if (data.user) {
-      const role: AppRole = metadata.role === 'admin' ? 'admin' : 'cliente';
-      await supabase.from('profiles').upsert({
-        user_id: data.user.id,
-        email,
-        full_name: metadata.full_name || metadata.name || email,
-        name: metadata.name || metadata.full_name || email,
-        role,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-
-      const profile = createProfile(data.user, role);
-      setState({ user: data.user, profile, role, loading: false, authError: null });
+    if (data.user && data.session) {
+      await applyUser(data.user);
     } else {
-      setState((current) => ({ ...current, loading: false, authError: 'Verifique seu e-mail para confirmar o acesso.' }));
+      setState({ user: null, profile: null, role: null, loading: false, authError: 'Conta criada. Confirme seu e-mail antes de entrar.' });
     }
 
     return { success: true };
@@ -272,7 +285,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result.success;
   };
 
-  const value = useMemo<AuthContextType>(() => ({
+  const value: AuthContextType = {
     user: state.user,
     profile: state.profile,
     role: state.role,
@@ -286,7 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshProfile,
     login,
     logout: signOut,
-  }), [state]);
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

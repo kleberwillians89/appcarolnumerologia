@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
 import PersonalYearCalculator from './PersonalYearCalculator';
 import { CompatibilitySection } from './CompatibilitySection';
@@ -11,10 +13,22 @@ import { SettingsPage } from './SettingsPage';
 import { AcquisitionPage } from './AcquisitionPage';
 import { DeliveriesPage } from './DeliveriesPage';
 
+type AppTab =
+  | 'deliveries'
+  | 'numerology'
+  | 'personalYear'
+  | 'profiles'
+  | 'acquisition'
+  | 'settings'
+  | 'compatibility'
+  | 'tests';
 
-type AppTab = 'deliveries' | 'numerology' | 'personalYear' | 'profiles' | 'acquisition' | 'settings' | 'compatibility' | 'tests';
+interface AppLayoutProps {
+  initialTab?: AppTab;
+}
 
 const productionTabs: Array<{ id: AppTab; label: string }> = [
+  { id: 'deliveries', label: 'Entregas' },
   { id: 'numerology', label: 'Mapa da Alma' },
   { id: 'personalYear', label: 'Ano Pessoal' },
   { id: 'profiles', label: 'Perfis' },
@@ -29,29 +43,12 @@ const devTabs: Array<{ id: AppTab; label: string }> = DEV_MODE
     ]
   : [];
 
-interface AppLayoutProps {
-  initialTab?: AppTab;
-}
-
-const AppLayout: React.FC<AppLayoutProps> = ({ initialTab = 'numerology' }) => {
-  const {
-    user,
-    profile,
-    isAdmin,
-    loading,
-    logout,
-  } = useAuth();
+const AppLayout: React.FC<AppLayoutProps> = ({ initialTab = 'deliveries' }) => {
+  const { user, profile, isAdmin, loading, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
-  const navTabs = [
-    productionTabs[0],
-    productionTabs[1],
-    ...(isAdmin ? [{ id: 'deliveries' as AppTab, label: 'Entregas' }] : []),
-    productionTabs[2],
-    productionTabs[3],
-    productionTabs[4],
-    ...devTabs,
-  ];
+
+  const navTabs = isAdmin ? [...productionTabs, ...devTabs] : [];
 
   const handleLogout = async () => {
     const logoutPromise = logout();
@@ -61,76 +58,79 @@ const AppLayout: React.FC<AppLayoutProps> = ({ initialTab = 'numerology' }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">
-        Carregando plataforma...
+      <div className="flex min-h-screen items-center justify-center bg-[#050B1A] px-4 text-center text-[#F8F5EF]">
+        Carregando...
       </div>
     );
   }
 
-  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-gray-900 relative overflow-hidden">
-      {/* Hero Section com imagem */}
-      <div className="relative h-[200px] sm:h-[300px] md:h-[400px] overflow-hidden">
-        <img src="https://d64gsuwffb70l.cloudfront.net/6877ab8bbdf6db9dc0251519_1760715868361_5e2fb5cd.png" alt="Carol Graber Numerologia" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-900"></div>
-      </div>
-      
-      <div className="relative z-10 -mt-16 sm:-mt-24 md:-mt-32">
-        <nav className="bg-slate-800/80 backdrop-blur-lg border-b border-yellow-500/20">
-          <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
-            <div className="flex justify-between items-center mb-3 sm:mb-4">
-              <div>
-                <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white">Carol Graber</h1>
-                <p className="text-yellow-500 text-xs sm:text-sm tracking-widest">NUMEROLOGIA</p>
-              </div>
-              <div className="flex items-center gap-2 sm:gap-4">
-                <span className="text-slate-300 text-xs sm:text-sm hidden sm:inline">{profile?.full_name || profile?.name || user?.email}</span>
-                <button onClick={handleLogout} className="px-2 sm:px-4 py-1.5 sm:py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-lg transition-colors text-xs sm:text-sm">Sair</button>
-              </div>
+  return (
+    <div className="min-h-screen bg-[#050B1A] text-[#F8F5EF]">
+      <header className="sticky top-0 z-30 border-b border-[#C9A96E]/20 bg-[#071D2B]/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-4 px-4 py-4 lg:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold tracking-[0.28em] text-[#C9A96E]">CAROL GRABER</p>
+              <h1 className="truncate text-xl font-bold text-white sm:text-2xl">Centro de Comando</h1>
             </div>
-            
-            {/* Navegação mobile com scroll horizontal */}
-            <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 scrollbar-hide">
-              <div className="flex gap-1.5 sm:gap-2 min-w-max sm:min-w-0 sm:flex-wrap">
-                {navTabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg font-semibold transition-all whitespace-nowrap text-xs sm:text-sm ${
-                      activeTab === tab.id
-                        ? 'bg-yellow-500 text-white'
-                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+
+            <div className="flex items-center justify-between gap-3 sm:justify-end">
+              <div className="min-w-0 text-right text-xs text-[#F8F5EF]/65 sm:text-sm">
+                <p className="truncate text-[#F8F5EF]">{profile?.full_name || profile?.name || user?.email}</p>
+                <p>Admin</p>
               </div>
+              <Button
+                variant="outline"
+                className="h-10 shrink-0 border-[#F8F5EF]/25 bg-transparent px-3 text-[#F8F5EF] hover:bg-[#F8F5EF]/10 hover:text-white"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Sair</span>
+              </Button>
             </div>
           </div>
-        </nav>
 
-        <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 md:py-12">
-          {activeTab === 'tests' ? (
-            <QuarterCycleTestPanel />
-          ) : activeTab === 'deliveries' && isAdmin ? (
-            <DeliveriesPage />
-          ) : activeTab === 'settings' ? (
-            <SettingsPage />
-          ) : activeTab === 'profiles' ? (
-            <SavedProfilesPage />
-          ) : activeTab === 'acquisition' ? (
-            <AcquisitionPage />
-          ) : activeTab === 'compatibility' ? (
-            <CompatibilitySection />
-          ) : activeTab === 'personalYear' ? (
-            <PersonalYearCalculator />
-          ) : (
-            <NumerologySection />
-          )}
+          <nav className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+            <div className="flex min-w-max gap-2">
+              {navTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`h-10 rounded-md px-4 text-sm font-semibold transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-[#C9A96E] text-[#050B1A]'
+                      : 'border border-[#F8F5EF]/10 bg-[#0B1426] text-[#F8F5EF]/75 hover:border-[#C9A96E]/35 hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </nav>
         </div>
+      </header>
 
-      </div>
-    </div>;
-
+      <main className="mx-auto w-full max-w-screen-2xl px-4 py-5 lg:px-6 lg:py-6">
+        {activeTab === 'deliveries' ? (
+          <DeliveriesPage />
+        ) : activeTab === 'settings' ? (
+          <SettingsPage />
+        ) : activeTab === 'profiles' ? (
+          <SavedProfilesPage />
+        ) : activeTab === 'acquisition' ? (
+          <AcquisitionPage />
+        ) : activeTab === 'compatibility' ? (
+          <CompatibilitySection />
+        ) : activeTab === 'tests' ? (
+          <QuarterCycleTestPanel />
+        ) : activeTab === 'personalYear' ? (
+          <PersonalYearCalculator />
+        ) : (
+          <NumerologySection />
+        )}
+      </main>
+    </div>
+  );
 };
+
 export default AppLayout;

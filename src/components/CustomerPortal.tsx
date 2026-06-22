@@ -1,74 +1,103 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Calendar, Download, FileText, Loader2, MessageCircle, Phone, UserRound } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, Navigate } from 'react-router-dom';
+import { Calendar, CheckCircle2, Download, FileText, Loader2, LogOut, PlayCircle, RefreshCw, ShoppingBag } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Delivery, DeliveryStatus, deliveryService, getProductLabel, isValidUuid } from '@/services/deliveryService';
+import { Delivery, DeliveryStatus, deliveryService, getProductLabel } from '@/services/deliveryService';
 import { pdfStorageService } from '@/services/pdfStorageService';
-import { generatePdfForProduct } from '@/services/pdfDeliveryService';
 import { sendLeadToGoogleSheets } from '@/services/googleSheetsService';
+import { getProductMaterials } from '@/config/productMaterials';
 import { formatBrazilianPhone, isValidBrazilianPhone, normalizeBrazilianPhone } from '@/utils/phoneUtils';
 import { premiumClasses } from '@/config/premiumClasses';
-import { WHATSAPP_URL } from '@/config/links';
+import { productVideoUrl } from '@/config/env';
 
-const statusLabel: Record<string, string> = {
-  AGUARDANDO_PAGAMENTO: 'Aguardando pagamento',
-  PAGO: 'Pagamento confirmado',
+const statusLabel: Record<DeliveryStatus, string> = {
+  PEDIDO_CRIADO: 'Pedido criado',
+  AGUARDANDO_PAGAMENTO: 'Aguardando confirmação de pagamento',
+  PAGAMENTO_CONFIRMADO: 'Pagamento confirmado',
   DADOS_RECEBIDOS: 'Dados recebidos',
   AGUARDANDO_DADOS: 'Aguardando dados',
-  PRONTO_PARA_GERAR_PDF: 'Pronto para gerar PDF',
-  AGUARDANDO_ANALISE: 'Análise manual',
+  PDF_DEMO_GERADO: 'PDF demo disponível',
   PDF_GERADO: 'PDF disponível',
-  PDF_ENVIADO: 'PDF enviado',
+  PDF_ENVIADO: 'Enviado pelo WhatsApp',
+  FINALIZADO: 'Finalizado',
 };
 
-const initialForm = {
+const statusClassName: Record<DeliveryStatus, string> = {
+  PEDIDO_CRIADO: 'border-sky-400/35 bg-sky-400/15 text-sky-100',
+  AGUARDANDO_PAGAMENTO: 'border-yellow-400/35 bg-yellow-400/15 text-yellow-100',
+  PAGAMENTO_CONFIRMADO: 'border-emerald-400/35 bg-emerald-400/15 text-emerald-100',
+  DADOS_RECEBIDOS: 'border-sky-400/35 bg-sky-400/15 text-sky-100',
+  AGUARDANDO_DADOS: 'border-yellow-400/35 bg-yellow-400/15 text-yellow-100',
+  PDF_DEMO_GERADO: 'border-amber-300/35 bg-amber-300/15 text-amber-100',
+  PDF_GERADO: 'border-violet-400/35 bg-violet-400/15 text-violet-100',
+  PDF_ENVIADO: 'border-violet-400/35 bg-violet-400/15 text-violet-100',
+  FINALIZADO: 'border-emerald-400/35 bg-emerald-400/15 text-emerald-100',
+};
+
+const blankForm = {
   nome: '',
   telefone: '',
   email: '',
   dataNascimento: '',
-  produto: 'desvende_mapa',
   observacoesCliente: '',
+};
+
+const needsForm = (delivery: Delivery) =>
+  delivery.status === 'PAGAMENTO_CONFIRMADO' ||
+  delivery.status === 'AGUARDANDO_DADOS' ||
+  !delivery.nome ||
+  !delivery.telefone ||
+  !delivery.dataNascimento;
+
+const progressSteps = [
+  { label: 'Pedido', statuses: ['PEDIDO_CRIADO', 'AGUARDANDO_PAGAMENTO'] },
+  { label: 'Pagamento', statuses: ['PAGAMENTO_CONFIRMADO', 'AGUARDANDO_DADOS'] },
+  { label: 'Seus dados', statuses: ['DADOS_RECEBIDOS'] },
+  { label: 'PDF', statuses: ['PDF_DEMO_GERADO', 'PDF_GERADO'] },
+  { label: 'Entrega', statuses: ['PDF_ENVIADO', 'FINALIZADO'] },
+] as const;
+
+const getProgressIndex = (status: DeliveryStatus) => {
+  const index = progressSteps.findIndex((step) => (step.statuses as readonly string[]).includes(status));
+  return index < 0 ? 0 : index;
 };
 
 export const CustomerPortal: React.FC = () => {
   const { user, profile, signOut } = useAuth();
   const { toast } = useToast();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
-  const [form, setForm] = useState(initialForm);
+  const [pdfUrls, setPdfUrls] = useState<Record<string, string>>({});
+  const [form, setForm] = useState(blankForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
-  const [pdfUrls, setPdfUrls] = useState<Record<string, string>>({});
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState('desvende_mapa');
+  const [videoFailed, setVideoFailed] = useState(false);
 
-  const userId = user?.id || '';
-  const activeDelivery = deliveries.find((delivery) =>
-    delivery.status === 'PAGO' ||
-    delivery.status === 'AGUARDANDO_DADOS' ||
-    !delivery.nome ||
-    !delivery.telefone ||
-    !delivery.dataNascimento
-  );
-  const shouldShowForm = showForm || Boolean(activeDelivery);
+  const activeDelivery = deliveries[0] || null;
 
   const loadDeliveries = useCallback(async () => {
-    if (!userId) return;
+    if (!user?.id) {
+      setDeliveries([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const data = await deliveryService.fetchDeliveriesForCurrentUser(userId);
+      const data = await deliveryService.fetchDeliveriesForCurrentUser(user.id);
       setDeliveries(data);
 
-      const urlEntries = await Promise.all(data.map(async (delivery) => {
-        const url = await pdfStorageService.getPdfUrlForDelivery(delivery);
-        return url ? [delivery.id, url] as const : null;
-      }));
+      const urlEntries = await Promise.all(
+        data.map(async (delivery) => {
+          const url = await pdfStorageService.getPdfUrlForDelivery(delivery);
+          return url ? [delivery.id, url] as const : null;
+        })
+      );
 
       setPdfUrls(Object.fromEntries(urlEntries.filter(Boolean) as Array<readonly [string, string]>));
     } catch (error) {
@@ -80,38 +109,39 @@ export const CustomerPortal: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [toast, user?.id]);
 
   useEffect(() => {
-    setForm((current) => ({
-      ...current,
-      nome: current.nome || profile?.full_name || profile?.name || '',
-      email: current.email || profile?.email || user?.email || '',
-    }));
-  }, [profile, user?.email]);
+    void loadDeliveries();
+
+    const handleUpdate = () => void loadDeliveries();
+    window.addEventListener('deliveriesUpdated', handleUpdate);
+    return () => window.removeEventListener('deliveriesUpdated', handleUpdate);
+  }, [loadDeliveries]);
 
   useEffect(() => {
     if (!activeDelivery) return;
 
-    setForm((current) => ({
-      ...current,
-      nome: activeDelivery.nome || current.nome || profile?.full_name || profile?.name || '',
-      telefone: activeDelivery.telefone ? formatBrazilianPhone(activeDelivery.telefone) : current.telefone,
-      email: activeDelivery.email || current.email || user?.email || '',
-      dataNascimento: activeDelivery.dataNascimento || current.dataNascimento,
-      produto: activeDelivery.produto || current.produto,
-      observacoesCliente: activeDelivery.observacoesCliente || current.observacoesCliente,
-    }));
-    setSelectedProduct(activeDelivery.produto || 'desvende_mapa');
-    setShowForm(true);
-  }, [activeDelivery?.id]);
+    setForm({
+      nome: activeDelivery.nome || profile?.full_name || profile?.name || '',
+      telefone: activeDelivery.telefone ? formatBrazilianPhone(activeDelivery.telefone) : '',
+      email: activeDelivery.email || profile?.email || user?.email || '',
+      dataNascimento: activeDelivery.dataNascimento || '',
+      observacoesCliente: activeDelivery.observacoesCliente || '',
+    });
+  }, [activeDelivery, profile, user?.email]);
 
-  useEffect(() => {
-    void loadDeliveries();
-  }, [loadDeliveries]);
+  const materials = useMemo(() => {
+    if (!activeDelivery) return [];
+    return getProductMaterials(activeDelivery).filter((material) => material.type === 'video' && material.url);
+  }, [activeDelivery]);
+  const videoUrl = materials.find((material) => material.type === 'video' && material.url)?.url || productVideoUrl;
+
+  useEffect(() => setVideoFailed(false), [videoUrl]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!activeDelivery) return;
 
     if (!form.nome.trim()) {
       toast({ title: 'Nome obrigatório', description: 'Informe seu nome completo.', variant: 'destructive' });
@@ -125,8 +155,8 @@ export const CustomerPortal: React.FC = () => {
 
     if (!form.telefone.trim() || !isValidBrazilianPhone(form.telefone)) {
       toast({
-        title: 'Telefone obrigatório',
-        description: 'Informe o telefone/WhatsApp do cliente para criar a entrega.',
+        title: 'WhatsApp obrigatório',
+        description: 'Informe um telefone válido para receber sua entrega.',
         variant: 'destructive',
       });
       return;
@@ -135,70 +165,47 @@ export const CustomerPortal: React.FC = () => {
     setSaving(true);
     try {
       const telefoneNormalizado = normalizeBrazilianPhone(form.telefone);
-      const status: DeliveryStatus = 'PRONTO_PARA_GERAR_PDF';
-      const existingDelivery = activeDelivery || deliveries.find((delivery) =>
-        delivery.produto === form.produto &&
-        delivery.status !== 'PDF_GERADO' &&
-        delivery.status !== 'PDF_ENVIADO'
-      );
-      const deliveryPayload = {
-        userId,
+      const dadosCliente = {
+        ...(activeDelivery.dadosCliente || {}),
         nome: form.nome.trim(),
         telefone: form.telefone,
         telefoneNormalizado,
         email: form.email.trim() || user?.email || '',
-        produto: form.produto,
-        status,
         dataNascimento: form.dataNascimento,
-        linkPdf: null,
-        pdfDataUrl: null,
-        fileName: null,
-        origem: 'plataforma',
-        observacoesCliente: form.observacoesCliente,
-        observacoesCarol: '',
-        dadosNumerologicos: {},
-        dadosCliente: {
-          nome: form.nome.trim(),
-          telefone: form.telefone,
-          telefoneNormalizado,
-          email: form.email.trim() || user?.email || '',
-          dataNascimento: form.dataNascimento,
-          produto: form.produto,
-          origem: 'plataforma',
-          observacoesCliente: form.observacoesCliente,
-        },
+        produto: activeDelivery.produto,
+        etapa: 'dados_enviados',
       };
-
-      const delivery = existingDelivery
-        ? await deliveryService.updateDelivery(existingDelivery.id, deliveryPayload)
-        : await deliveryService.createDelivery(deliveryPayload);
+      const updatedDelivery = await deliveryService.submitCustomerData(activeDelivery.id, {
+        nome: form.nome.trim(),
+        telefone: form.telefone,
+        telefoneNormalizado,
+        email: form.email.trim() || user?.email || '',
+        dataNascimento: form.dataNascimento,
+        observacoesCliente: form.observacoesCliente,
+        dadosCliente,
+      });
 
       void sendLeadToGoogleSheets({
-        nome: delivery.nome,
-        telefone: delivery.telefone,
-        telefoneNormalizado: delivery.telefoneNormalizado,
-        email: delivery.email,
-        produto: delivery.produto,
-        dataNascimento: delivery.dataNascimento,
-        status: delivery.status,
-        origem: delivery.origem,
-        observacoesCliente: delivery.observacoesCliente,
-        createdAt: delivery.dataCriacao,
+        nome: updatedDelivery.nome,
+        telefone: updatedDelivery.telefone,
+        telefoneNormalizado: updatedDelivery.telefoneNormalizado,
+        email: updatedDelivery.email,
+        produto: updatedDelivery.produto,
+        dataNascimento: updatedDelivery.dataNascimento,
+        status: updatedDelivery.status,
+        origem: updatedDelivery.origem,
+        observacoesCliente: updatedDelivery.observacoesCliente,
+        createdAt: updatedDelivery.dataCriacao,
       });
+
+      setDeliveries((current) => current.map((delivery) => (
+        delivery.id === updatedDelivery.id ? updatedDelivery : delivery
+      )));
 
       toast({
         title: 'Dados enviados',
-        description: existingDelivery ? 'Sua entrega foi atualizada.' : 'Sua entrega foi criada e já aparece na sua área.',
+        description: 'A Carol já pode preparar sua entrega.',
       });
-      setDeliveries((current) => {
-        const exists = current.some((item) => item.id === delivery.id);
-        return exists
-          ? current.map((item) => item.id === delivery.id ? delivery : item)
-          : [delivery, ...current];
-      });
-      setLastSavedAt(new Date().toISOString());
-      setShowForm(false);
-      setForm({ ...initialForm, nome: form.nome, email: form.email });
     } catch (error) {
       toast({
         title: 'Não foi possível salvar',
@@ -210,274 +217,226 @@ export const CustomerPortal: React.FC = () => {
     }
   };
 
-  const handleStartProduct = () => {
-    setForm((current) => ({
-      ...current,
-      produto: selectedProduct,
-      nome: current.nome || profile?.full_name || profile?.name || '',
-      email: current.email || profile?.email || user?.email || '',
-    }));
-    setShowForm(true);
-  };
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#050B1A] px-4 text-[#F8F5EF]">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin text-[#C9A96E]" />
+        Carregando sua área...
+      </div>
+    );
+  }
 
-  const handleGeneratePdf = async (delivery: Delivery) => {
-    if (!delivery.nome || !delivery.dataNascimento) {
-      toast({
-        title: 'Dados incompletos',
-        description: 'Informe nome e data de nascimento antes de gerar o PDF.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  if (!activeDelivery) {
+    return <Navigate to="/loja" replace />;
+  }
 
-    setGeneratingPdfId(delivery.id);
-    try {
-      const result = await generatePdfForProduct({
-        produto: delivery.produto === 'ano_pessoal' ? 'ano_pessoal' : 'mapa',
-        cliente: {
-          nome: delivery.nome,
-          dataNascimento: delivery.dataNascimento,
-          telefone: formatBrazilianPhone(delivery.telefoneNormalizado || delivery.telefone),
-          email: delivery.email,
-        },
-        dadosNumerologicos: delivery.dadosNumerologicos || {},
-        origem: 'plataforma',
-      });
-
-      if (!result.success) {
-        toast({
-          title: 'Não foi possível gerar o PDF',
-          description: result.error,
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      let linkPdf = result.linkPdf || null;
-      let pdfStoragePath: string | null = null;
-
-      if (isValidUuid(delivery.id) && result.fileName && result.pdfDataUrl) {
-        const upload = await pdfStorageService.uploadPdf({
-          dataUrl: result.pdfDataUrl,
-          fileName: result.fileName,
-          deliveryId: delivery.id,
-          userId: delivery.userId,
-        });
-
-        if (upload.success && upload.path) {
-          pdfStoragePath = upload.path;
-          const signed = await pdfStorageService.createSignedPdfUrl(upload.path);
-          linkPdf = signed.signedUrl || linkPdf;
-          await pdfStorageService.createPdfFileRecord({
-            deliveryId: delivery.id,
-            userId: delivery.userId,
-            fileName: result.fileName,
-            path: upload.path,
-            signedUrl: signed.signedUrl,
-          });
-        }
-      }
-
-      const updatedDelivery = await deliveryService.updateDeliveryPdf(delivery, {
-        linkPdf,
-        pdfDataUrl: result.pdfDataUrl,
-        fileName: result.fileName,
-        pdfStoragePath,
-      });
-      const pdfUrl = await pdfStorageService.getPdfUrlForDelivery(updatedDelivery);
-
-      setDeliveries((current) => current.map((item) => item.id === updatedDelivery.id ? updatedDelivery : item));
-      if (pdfUrl) {
-        setPdfUrls((current) => ({ ...current, [updatedDelivery.id]: pdfUrl }));
-      }
-
-      toast({
-        title: 'PDF gerado',
-        description: `${getProductLabel(updatedDelivery.produto)} ficou disponível na sua área.`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Não foi possível gerar o PDF',
-        description: error instanceof Error ? error.message : 'Tente novamente em instantes.',
-        variant: 'destructive',
-      });
-    } finally {
-      setGeneratingPdfId(null);
-    }
-  };
+  const inlinePdfUrl = activeDelivery.pdfDataUrl?.startsWith('data:application/pdf') && activeDelivery.pdfDataUrl.length > 1000
+    ? activeDelivery.pdfDataUrl
+    : '';
+  const remotePdfUrl = activeDelivery.linkPdf?.startsWith('http') ? activeDelivery.linkPdf : '';
+  const pdfUrl = pdfUrls[activeDelivery.id] || inlinePdfUrl || remotePdfUrl;
+  const showWaiting = activeDelivery.status === 'PEDIDO_CRIADO' || activeDelivery.status === 'AGUARDANDO_PAGAMENTO';
+  const showForm = !showWaiting && needsForm(activeDelivery);
+  const showPortal = !showWaiting && !showForm;
+  const progressIndex = getProgressIndex(activeDelivery.status);
 
   return (
     <div className={premiumClasses.page}>
       <header className={premiumClasses.header}>
-        <div className="container mx-auto px-4 py-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[#C9A96E] text-xs font-semibold tracking-[0.3em]">CAROL GRABER</p>
-            <h1 className="text-2xl font-bold text-white">Minha área</h1>
+        <div className="mx-auto flex w-full max-w-screen-xl items-center justify-between gap-3 px-4 py-4">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-[0.28em] text-[#C9A96E]">CAROL GRABER</p>
+            <h1 className="truncate text-xl font-bold text-white sm:text-2xl">Minha Área</h1>
           </div>
-          <Button variant="outline" className={`${premiumClasses.secondaryButton} w-full sm:w-auto`} onClick={signOut}>
-            Sair
+          <Button
+            variant="outline"
+            className="h-11 shrink-0 border-[#F8F5EF]/25 bg-transparent px-3 text-[#F8F5EF] hover:bg-[#F8F5EF]/10 hover:text-white"
+            onClick={signOut}
+          >
+            <LogOut className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Sair</span>
           </Button>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        {!loading && deliveries.length === 0 && !shouldShowForm && (
-          <Card className={premiumClasses.card}>
-            <CardHeader>
-              <CardTitle className="text-white">Bem-vindo à sua área</CardTitle>
-              <p className={premiumClasses.muted}>Aqui você poderá preencher seus dados, acompanhar suas leituras e acessar seus PDFs.</p>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="rounded-lg border border-[#C9A96E]/25 bg-[#070D1D]/80 p-4">
-                <h3 className="font-semibold text-white">Nenhum produto ativo ainda</h3>
-                <p className={`mt-2 text-sm ${premiumClasses.muted}`}>
-                  Escolha um produto para preencher seus dados e gerar o PDF quando estiver pronto.
-                </p>
-              </div>
+      <main className="mx-auto flex w-full max-w-screen-md flex-col gap-5 px-4 py-6 sm:py-8">
+        <section className="rounded-lg border border-[#C9A96E]/25 bg-[#0B1426]/95 p-5 shadow-xl shadow-black/20">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold tracking-[0.2em] text-[#C9A96E]">SEU PRODUTO</p>
+              <h2 className="mt-2 text-2xl font-bold text-white">{getProductLabel(activeDelivery.produto)}</h2>
+            </div>
+            <Badge className={`${statusClassName[activeDelivery.status]} w-fit rounded-full border px-3 py-1`}>
+              {statusLabel[activeDelivery.status]}
+            </Badge>
+          </div>
+          <Button asChild variant="outline" className="mt-5 h-11 w-full border-[#C9A96E]/35 bg-transparent text-[#F8F5EF] hover:bg-[#C9A96E]/10 hover:text-white sm:w-auto">
+            <Link to="/loja">
+              <ShoppingBag className="mr-2 h-4 w-4" />
+              Ver outros produtos
+            </Link>
+          </Button>
+        </section>
 
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-                <select
-                  value={selectedProduct}
-                  onChange={(event) => setSelectedProduct(event.target.value)}
-                  className={premiumClasses.select}
-                >
-                  <option value="desvende_mapa">Desvende seu Mapa</option>
-                  <option value="nome_profissional_marca">Nome Profissional/Marca</option>
-                  <option value="data_cesarea">Data para Cesárea</option>
-                  <option value="nome_bebe">Nome do Bebê</option>
-                  <option value="abertura_empresa">Abertura de Empresa</option>
-                </select>
-                <Button className={premiumClasses.primaryButton} onClick={handleStartProduct}>
-                  Escolher produto
-                </Button>
-                <Button variant="outline" className={premiumClasses.secondaryButton} onClick={loadDeliveries}>
-                  Atualizar
-                </Button>
-              </div>
+        <section className="rounded-2xl border border-[#C9A96E]/20 bg-[#0B1426]/75 p-4 sm:p-5" aria-label="Progresso do pedido">
+          <div className="grid grid-cols-5 gap-1 sm:gap-3">
+            {progressSteps.map((step, index) => {
+              const complete = index <= progressIndex;
+              return (
+                <div key={step.label} className="min-w-0 text-center">
+                  <div className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full border ${complete ? 'border-[#C9A96E] bg-[#C9A96E] text-[#06101d]' : 'border-white/15 bg-[#07101d] text-white/35'}`}>
+                    {index < progressIndex ? <CheckCircle2 className="h-4 w-4" /> : <span className="text-xs font-bold">{index + 1}</span>}
+                  </div>
+                  <p className={`mt-2 truncate text-[10px] font-semibold sm:text-xs ${complete ? 'text-[#F8F5EF]' : 'text-[#F8F5EF]/35'}`}>{step.label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
-              <Button asChild variant="outline" className={`${premiumClasses.secondaryButton} w-full sm:w-auto`}>
-                <a href={WHATSAPP_URL} target="_blank" rel="noreferrer">
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  Tirar dúvida pelo WhatsApp
-                </a>
-              </Button>
-            </CardContent>
-          </Card>
+        {showWaiting && (
+          <section className="rounded-lg border border-yellow-400/25 bg-yellow-400/10 p-5 text-center">
+            <Calendar className="mx-auto h-8 w-8 text-yellow-200" />
+            <h3 className="mt-4 text-xl font-bold text-white">Aguardando confirmação de pagamento</h3>
+            <p className="mt-3 text-sm leading-6 text-[#F8F5EF]/75">
+              Seu pedido foi registrado. Assim que a Carol confirmar o pagamento, o formulário será liberado aqui.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-5 h-12 w-full border-[#F8F5EF]/25 bg-transparent text-[#F8F5EF] hover:bg-[#F8F5EF]/10 sm:w-auto"
+              onClick={loadDeliveries}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Atualizar
+            </Button>
+          </section>
         )}
 
-        {shouldShowForm && (
-          <Card className={premiumClasses.card}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-white">
-                <UserRound className="w-5 h-5 text-[#C9A96E]" />
-                Preencher dados
-              </CardTitle>
-              <p className={premiumClasses.muted}>Preencha suas informações para liberar o cálculo e a geração do PDF.</p>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+        {showForm && (
+          <form onSubmit={handleSubmit} className="rounded-lg border border-[#C9A96E]/25 bg-[#0B1426]/95 p-5 shadow-xl shadow-black/20">
+            <div className="mb-5">
+              <h3 className="text-xl font-bold text-white">Preencha seus dados</h3>
+              <p className="mt-2 text-sm leading-6 text-[#F8F5EF]/70">
+                Essas informações serão usadas para preparar sua entrega personalizada.
+              </p>
+            </div>
+
+            <div className="grid gap-4">
               <div>
                 <Label htmlFor="customer-name" className={premiumClasses.label}>Nome completo</Label>
-                <Input id="customer-name" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className={premiumClasses.input} required />
-              </div>
-              <div>
-                <Label htmlFor="customer-phone" className={premiumClasses.label}>Telefone / WhatsApp</Label>
                 <Input
-                  id="customer-phone"
-                  value={form.telefone}
-                  onChange={(e) => setForm({ ...form, telefone: formatBrazilianPhone(e.target.value) })}
-                  placeholder="(11) 99999-9999"
-                  className={premiumClasses.input}
+                  id="customer-name"
+                  value={form.nome}
+                  onChange={(event) => setForm({ ...form, nome: event.target.value })}
+                  className={`${premiumClasses.input} mt-2 h-12`}
                   required
                 />
               </div>
+
               <div>
-                <Label htmlFor="customer-email" className={premiumClasses.label}>E-mail (opcional)</Label>
-                <Input id="customer-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={premiumClasses.input} />
+                <Label htmlFor="customer-phone" className={premiumClasses.label}>WhatsApp</Label>
+                <Input
+                  id="customer-phone"
+                  value={form.telefone}
+                  onChange={(event) => setForm({ ...form, telefone: formatBrazilianPhone(event.target.value) })}
+                  placeholder="(11) 99999-9999"
+                  className={`${premiumClasses.input} mt-2 h-12`}
+                  required
+                />
               </div>
+
+              <div>
+                <Label htmlFor="customer-email" className={premiumClasses.label}>E-mail</Label>
+                <Input
+                  id="customer-email"
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => setForm({ ...form, email: event.target.value })}
+                  className={`${premiumClasses.input} mt-2 h-12`}
+                />
+              </div>
+
               <div>
                 <Label htmlFor="customer-birth" className={premiumClasses.label}>Data de nascimento</Label>
-                <Input id="customer-birth" type="date" value={form.dataNascimento} onChange={(e) => setForm({ ...form, dataNascimento: e.target.value })} className={premiumClasses.input} required />
+                <Input
+                  id="customer-birth"
+                  type="date"
+                  value={form.dataNascimento}
+                  onChange={(event) => setForm({ ...form, dataNascimento: event.target.value })}
+                  className={`${premiumClasses.input} mt-2 h-12`}
+                  required
+                />
               </div>
+
               <div>
-                <Label htmlFor="customer-product" className={premiumClasses.label}>Produto</Label>
-                <select
-                  id="customer-product"
-                  value={form.produto}
-                  onChange={(e) => setForm({ ...form, produto: e.target.value })}
-                  className={premiumClasses.select}
-                  disabled={Boolean(activeDelivery)}
-                >
-                  <option value="desvende_mapa">Desvende seu Mapa</option>
-                  <option value="nome_profissional_marca">Nome Profissional/Marca</option>
-                  <option value="data_cesarea">Data para Cesárea</option>
-                  <option value="nome_bebe">Nome do Bebê</option>
-                  <option value="abertura_empresa">Abertura de Empresa</option>
-                </select>
-              </div>
-              <div className="md:col-span-2">
                 <Label htmlFor="customer-notes" className={premiumClasses.label}>Observações</Label>
-                <Textarea id="customer-notes" value={form.observacoesCliente} onChange={(e) => setForm({ ...form, observacoesCliente: e.target.value })} className={premiumClasses.textarea} />
+                <Textarea
+                  id="customer-notes"
+                  value={form.observacoesCliente}
+                  onChange={(event) => setForm({ ...form, observacoesCliente: event.target.value })}
+                  className={`${premiumClasses.textarea} mt-2 min-h-28`}
+                />
               </div>
-              <div className="md:col-span-2 space-y-2">
-                <Button type="submit" disabled={saving} className={`${premiumClasses.primaryButton} w-full sm:w-auto`}>
-                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-                  {saving ? 'Salvando...' : 'Salvar dados'}
-                </Button>
-                {lastSavedAt && <p className="text-sm text-[#C9A96E]">Dados salvos com sucesso.</p>}
-              </div>
-              </form>
-            </CardContent>
-          </Card>
+            </div>
+
+            <Button type="submit" disabled={saving} className={`${premiumClasses.primaryButton} mt-6 h-12 w-full text-base`}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              {saving ? 'Enviando...' : 'Enviar dados'}
+            </Button>
+          </form>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-bold text-white">Meus produtos</h2>
-          {loading ? (
-            <div className={`flex items-center gap-2 ${premiumClasses.muted}`}>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Carregando entregas...
-            </div>
-          ) : deliveries.length === 0 ? (
-            <Card className={premiumClasses.cardAlt}>
-              <CardContent className="py-8">Nenhum produto ativo ainda.</CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {deliveries.map((delivery) => (
-                <Card key={delivery.id} className={premiumClasses.cardAlt}>
-                  <CardContent className="py-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <h3 className="font-semibold text-white">{getProductLabel(delivery.produto)}</h3>
-                      <div className={`mt-2 flex flex-wrap gap-3 text-sm ${premiumClasses.muted}`}>
-                        <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-[#C9A96E]" />{delivery.dataNascimento}</span>
-                        <span className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-[#C9A96E]" />{formatBrazilianPhone(delivery.telefoneNormalizado || delivery.telefone)}</span>
-                      </div>
-                      <p className="mt-2 text-sm text-[#C9A96E]">{statusLabel[delivery.status] || delivery.status}</p>
-                    </div>
-                    {pdfUrls[delivery.id] ? (
-                      <Button asChild className={`${premiumClasses.primaryButton} w-full sm:w-auto`}>
-                        <a href={pdfUrls[delivery.id]} target="_blank" rel="noreferrer">
-                          <Download className="w-4 h-4 mr-2" />
-                          Baixar PDF
-                        </a>
-                      </Button>
-                    ) : (
-                      <Button
-                        className={`${premiumClasses.primaryButton} w-full sm:w-auto`}
-                        onClick={() => handleGeneratePdf(delivery)}
-                        disabled={generatingPdfId === delivery.id}
-                      >
-                        {generatingPdfId === delivery.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-                        {generatingPdfId === delivery.id ? 'Gerando...' : 'Gerar PDF'}
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </section>
+        {showPortal && (
+          <section className="grid gap-4">
+            <article className="rounded-lg border border-[#C9A96E]/25 bg-[#0B1426]/95 p-5 shadow-xl shadow-black/20">
+              <FileText className="h-8 w-8 text-[#C9A96E]" />
+              <h3 className="mt-4 text-xl font-bold text-white">Seu PDF</h3>
+              <p className="mt-2 text-sm leading-6 text-[#F8F5EF]/70">
+                Quando o material estiver pronto, ele aparecerá aqui para download.
+              </p>
+              {activeDelivery.status === 'PDF_DEMO_GERADO' && (
+                <div className="mt-4 rounded-lg border border-amber-300/30 bg-amber-300/10 p-3 text-sm text-amber-100">
+                  PDF demonstrativo gerado em ambiente de teste.
+                </div>
+              )}
+              {pdfUrl ? (
+                <Button asChild className={`${premiumClasses.primaryButton} mt-5 h-12 w-full text-base`}>
+                  <a href={pdfUrl} download={activeDelivery.fileName || undefined} target={pdfUrl.startsWith('data:') ? undefined : '_blank'} rel="noreferrer">
+                    <Download className="mr-2 h-4 w-4" />
+                    Baixar PDF
+                  </a>
+                </Button>
+              ) : (
+                <div className="mt-5 rounded-md border border-[#F8F5EF]/10 bg-[#070D1D] p-4 text-sm text-[#F8F5EF]/70">
+                  PDF em preparação.
+                </div>
+              )}
+            </article>
+
+            <article className="rounded-lg border border-[#C9A96E]/25 bg-[#0B1426]/95 p-5 shadow-xl shadow-black/20">
+              <PlayCircle className="h-8 w-8 text-[#C9A96E]" />
+              <h3 className="mt-4 text-xl font-bold text-white">Vídeo do produto</h3>
+              {videoUrl && !videoFailed ? (
+                <div className="mt-4 overflow-hidden rounded-xl border border-[#C9A96E]/20 bg-black">
+                  <video
+                    className="aspect-video w-full"
+                    controls
+                    playsInline
+                    preload="metadata"
+                    src={videoUrl}
+                    onError={() => setVideoFailed(true)}
+                  >
+                    Seu navegador não oferece suporte ao player de vídeo.
+                  </video>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-md border border-[#F8F5EF]/10 bg-[#070D1D] p-4 text-sm text-[#F8F5EF]/70">
+                  O vídeo complementar será disponibilizado junto com a entrega.
+                </div>
+              )}
+            </article>
+          </section>
+        )}
       </main>
     </div>
   );

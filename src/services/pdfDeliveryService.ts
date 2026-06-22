@@ -3,6 +3,7 @@ import { calculatePersonalYear } from '@/utils/numerologyCalculations2';
 import { generateCompletePDF } from '@/utils/completePersonalYearPdf';
 import { generateMapaDaAlmaPDF } from '@/utils/mapaDaAlmaPdfGenerator';
 import { CompatibilidadeData } from '@/utils/mapaDaAlmaPdfTypes';
+import { jsPDF } from 'jspdf';
 
 export type PdfProductKey = 'mapa' | 'ano_pessoal';
 export type PdfProduct = PdfProductKey;
@@ -40,6 +41,67 @@ export interface PdfGenerationResult {
   generatedAt?: string;
   error?: string;
 }
+
+export const generateDemoPdf = ({
+  clientName,
+  productTitle,
+  birthDate,
+}: {
+  clientName: string;
+  productTitle: string;
+  birthDate: string;
+}): PdfGenerationResult => {
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+  pdf.setFillColor(6, 16, 29);
+  pdf.rect(0, 0, 210, 297, 'F');
+  pdf.setDrawColor(201, 169, 110);
+  pdf.setLineWidth(0.6);
+  pdf.rect(14, 14, 182, 269);
+  pdf.setTextColor(201, 169, 110);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(13);
+  pdf.text('CAROL GRABER NUMEROLOGIA', 105, 36, { align: 'center' });
+  pdf.setTextColor(248, 245, 239);
+  pdf.setFontSize(27);
+  pdf.text(productTitle || 'Leitura Numerologica', 105, 65, { align: 'center', maxWidth: 160 });
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(13);
+  pdf.text(`Cliente: ${clientName || 'Cliente'}`, 28, 100);
+  pdf.text(`Data de nascimento: ${birthDate || 'Nao informada'}`, 28, 112);
+  pdf.setFillColor(16, 32, 51);
+  pdf.roundedRect(28, 138, 154, 58, 3, 3, 'F');
+  pdf.setTextColor(228, 201, 142);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(16);
+  pdf.text('PDF DEMONSTRATIVO', 105, 158, { align: 'center' });
+  pdf.setTextColor(248, 245, 239);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(11);
+  pdf.text('Material gerado em ambiente de teste para validar o fluxo da plataforma.', 105, 177, { align: 'center', maxWidth: 130 });
+  pdf.setTextColor(180, 180, 180);
+  pdf.setFontSize(9);
+  pdf.text('Este arquivo nao representa a entrega numerologica final.', 105, 258, { align: 'center' });
+
+  const fileName = `demo-${productTitle || 'produto'}-${clientName || 'cliente'}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') + '.pdf';
+  const pdfDataUrl = pdf.output('datauristring');
+
+  if (!pdfDataUrl.startsWith('data:application/pdf') || pdfDataUrl.length < 1000) {
+    return { success: false, error: 'O PDF demonstrativo não foi gerado corretamente.' };
+  }
+
+  return {
+    success: true,
+    linkPdf: createLocalPdfLink(fileName),
+    pdfDataUrl,
+    fileName,
+    generatedAt: new Date().toISOString(),
+  };
+};
 
 const validateClient = (input: PdfGenerationInput): string | null => {
   if (!input.cliente.nome || !input.cliente.dataNascimento) {

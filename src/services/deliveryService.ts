@@ -1,18 +1,21 @@
 import { DEV_MODE } from '@/config/devMode';
-import { hasSupabaseConfig } from '@/config/env';
+import { demoMode, hasSupabaseConfig } from '@/config/env';
 import { supabase } from '@/lib/supabaseClient';
 import { normalizeBrazilianPhone } from '@/utils/phoneUtils';
-import { PdfProduct, PdfProductKey } from './pdfDeliveryService';
+import { PdfGenerationInput, PdfProduct, PdfProductKey } from './pdfDeliveryService';
+
+type JsonRecord = Record<string, unknown>;
 
 export type DeliveryStatus =
+  | 'PEDIDO_CRIADO'
   | 'AGUARDANDO_PAGAMENTO'
-  | 'PAGO'
+  | 'PAGAMENTO_CONFIRMADO'
   | 'DADOS_RECEBIDOS'
   | 'AGUARDANDO_DADOS'
-  | 'PRONTO_PARA_GERAR_PDF'
-  | 'AGUARDANDO_ANALISE'
+  | 'PDF_DEMO_GERADO'
   | 'PDF_GERADO'
-  | 'PDF_ENVIADO';
+  | 'PDF_ENVIADO'
+  | 'FINALIZADO';
 
 export interface Delivery {
   id: string;
@@ -35,8 +38,8 @@ export interface Delivery {
   origem: 'mock' | 'plataforma' | 'site' | 'google_sheets';
   observacoesCliente: string;
   observacoesCarol: string;
-  dadosNumerologicos?: any;
-  dadosCliente?: any;
+  dadosNumerologicos?: PdfGenerationInput['dadosNumerologicos'];
+  dadosCliente?: JsonRecord;
 }
 
 export interface SiteLeadPayload {
@@ -50,8 +53,8 @@ export interface SiteLeadPayload {
   origem?: 'site' | 'google_sheets' | 'plataforma';
   observacoesCliente?: string;
   observacoesCarol?: string;
-  dadosNumerologicos?: any;
-  dadosCliente?: any;
+  dadosNumerologicos?: PdfGenerationInput['dadosNumerologicos'];
+  dadosCliente?: JsonRecord;
 }
 
 export type DeliveryCreateInput = Omit<Delivery, 'id' | 'dataCriacao' | 'dataEnvio' | 'telefoneNormalizado'> &
@@ -183,21 +186,20 @@ const mockDeliveries: Delivery[] = [
 
 const isBrowser = () => typeof window !== 'undefined';
 
-const normalizeStatus = (status: any): DeliveryStatus => {
+export const normalizeStatus = (status: unknown): DeliveryStatus => {
+  if (status === 'PEDIDO_CRIADO' || status === 'pedido_criado') return 'PEDIDO_CRIADO';
   if (status === 'AGUARDANDO_PAGAMENTO' || status === 'aguardando_pagamento') return 'AGUARDANDO_PAGAMENTO';
-  if (status === 'PAGO' || status === 'pago') return 'PAGO';
+  if (status === 'PAGAMENTO_CONFIRMADO' || status === 'PAGO' || status === 'pago') return 'PAGAMENTO_CONFIRMADO';
+  if (status === 'AGUARDANDO_DADOS') return 'AGUARDANDO_DADOS';
+  if (status === 'DADOS_RECEBIDOS' || status === 'PRONTO_PARA_GERAR_PDF' || status === 'AGUARDANDO_ANALISE') return 'DADOS_RECEBIDOS';
+  if (status === 'PDF_DEMO_GERADO' || status === 'pdf_demo_gerado') return 'PDF_DEMO_GERADO';
   if (status === 'pdf_gerado') return 'PDF_GERADO';
   if (status === 'enviado') return 'PDF_ENVIADO';
   if (status === 'pendente') return 'DADOS_RECEBIDOS';
   if (
-    status === 'AGUARDANDO_PAGAMENTO' ||
-    status === 'PAGO' ||
-    status === 'DADOS_RECEBIDOS' ||
-    status === 'AGUARDANDO_DADOS' ||
-    status === 'PRONTO_PARA_GERAR_PDF' ||
-    status === 'AGUARDANDO_ANALISE' ||
     status === 'PDF_GERADO' ||
-    status === 'PDF_ENVIADO'
+    status === 'PDF_ENVIADO' ||
+    status === 'FINALIZADO'
   ) {
     return status;
   }
@@ -205,40 +207,53 @@ const normalizeStatus = (status: any): DeliveryStatus => {
   return 'DADOS_RECEBIDOS';
 };
 
-const normalizeProduct = (produto: any): PdfProductKey | string => {
+const normalizeProduct = (produto: unknown): PdfProductKey | string => {
   if (produto === 'ano_pessoal' || produto === 'Ano Pessoal') return 'ano_pessoal';
   if (produto === 'mapa' || produto === 'Mapa da Alma') return 'mapa';
   if (typeof produto === 'string' && produto.trim()) return produto;
   return 'mapa';
 };
 
-export const mapDeliveryFromSupabase = (delivery: any): Delivery => ({
-  id: delivery.id || delivery.localId || createLocalId(),
-  localId: delivery.localId,
-  userId: delivery.user_id || delivery.userId || null,
-  nome: delivery.nome || delivery.name || 'Cliente',
-  telefone: delivery.telefone || '',
-  telefoneNormalizado: delivery.telefone_normalizado || delivery.telefoneNormalizado || normalizeBrazilianPhone(delivery.telefone || ''),
-  email: delivery.email || '',
-  produto: normalizeProduct(delivery.produto),
-  tipoProduto: delivery.tipo_produto || delivery.tipoProduto || delivery.produto || null,
-  status: normalizeStatus(delivery.status),
-  dataNascimento: delivery.data_nascimento || delivery.dataNascimento || delivery.birthDate || '',
-  linkPdf: delivery.link_pdf || delivery.linkPdf || null,
-  pdfDataUrl: delivery.pdf_data_url || delivery.pdfDataUrl || null,
-  fileName: delivery.file_name || delivery.fileName || null,
-  pdfStoragePath: delivery.pdf_storage_path || delivery.pdfStoragePath || null,
-  dataCriacao: delivery.data_criacao || delivery.dataCriacao || delivery.created_at || new Date().toISOString(),
-  dataEnvio: delivery.data_envio || delivery.dataEnvio || null,
-  origem: delivery.origem || 'mock',
-  observacoesCliente: delivery.observacoes_cliente || delivery.observacoesCliente || '',
-  observacoesCarol: delivery.observacoes_carol || delivery.observacoesCarol || '',
-  dadosNumerologicos: delivery.dados_numerologicos || delivery.dadosNumerologicos,
-  dadosCliente: delivery.dados_cliente || delivery.dadosCliente,
-});
+const readValue = (row: JsonRecord, ...keys: string[]) => keys.map((key) => row[key]).find((value) => value !== undefined && value !== null);
+const readString = (row: JsonRecord, ...keys: string[]) => {
+  const value = readValue(row, ...keys);
+  return typeof value === 'string' ? value : '';
+};
+const readJson = <T,>(row: JsonRecord, ...keys: string[]) => {
+  const value = readValue(row, ...keys);
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as T : undefined;
+};
+
+export const mapDeliveryFromSupabase = (delivery: JsonRecord): Delivery => {
+  const telefone = readString(delivery, 'telefone');
+  return {
+    id: readString(delivery, 'id', 'localId') || createLocalId(),
+    localId: readString(delivery, 'localId') || undefined,
+    userId: readString(delivery, 'user_id', 'userId') || null,
+    nome: readString(delivery, 'nome', 'name') || 'Cliente',
+    telefone,
+    telefoneNormalizado: readString(delivery, 'telefone_normalizado', 'telefoneNormalizado') || normalizeBrazilianPhone(telefone),
+    email: readString(delivery, 'email'),
+    produto: normalizeProduct(readValue(delivery, 'produto')),
+    tipoProduto: readString(delivery, 'tipo_produto', 'tipoProduto', 'produto') || null,
+    status: normalizeStatus(readValue(delivery, 'status')),
+    dataNascimento: readString(delivery, 'data_nascimento', 'dataNascimento', 'birthDate'),
+    linkPdf: readString(delivery, 'link_pdf', 'linkPdf') || null,
+    pdfDataUrl: readString(delivery, 'pdf_data_url', 'pdfDataUrl') || null,
+    fileName: readString(delivery, 'file_name', 'fileName') || null,
+    pdfStoragePath: readString(delivery, 'pdf_storage_path', 'pdfStoragePath') || null,
+    dataCriacao: readString(delivery, 'data_criacao', 'dataCriacao', 'created_at') || new Date().toISOString(),
+    dataEnvio: readString(delivery, 'data_envio', 'dataEnvio') || null,
+    origem: (readString(delivery, 'origem') as Delivery['origem']) || 'mock',
+    observacoesCliente: readString(delivery, 'observacoes_cliente', 'observacoesCliente'),
+    observacoesCarol: readString(delivery, 'observacoes_carol', 'observacoesCarol'),
+    dadosNumerologicos: readJson<PdfGenerationInput['dadosNumerologicos']>(delivery, 'dados_numerologicos', 'dadosNumerologicos'),
+    dadosCliente: readJson<JsonRecord>(delivery, 'dados_cliente', 'dadosCliente'),
+  };
+};
 
 export const mapDeliveryToSupabase = (delivery: Partial<Delivery>) => {
-  const payload: Record<string, any> = {};
+  const payload: JsonRecord = {};
 
   if ('userId' in delivery && isValidUuid(delivery.userId)) payload.user_id = delivery.userId;
   if ('nome' in delivery) payload.nome = delivery.nome;
@@ -266,20 +281,20 @@ export const mapDeliveryToSupabase = (delivery: Partial<Delivery>) => {
   return compactDbPayload(filterAllowedDeliveryColumns(payload));
 };
 
-const filterAllowedDeliveryColumns = (payload: Record<string, any>) => {
+const filterAllowedDeliveryColumns = (payload: JsonRecord) => {
   const allowed = new Set<string>(DELIVERY_INSERT_UPDATE_COLUMNS);
   return Object.fromEntries(
     Object.entries(payload).filter(([key]) => allowed.has(key as DeliverySupabaseColumn))
   );
 };
 
-const compactDbPayload = (payload: Record<string, any>) => {
+const compactDbPayload = (payload: JsonRecord) => {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined)
   );
 };
 
-const logSupabaseMutationError = (operation: string, payload: Record<string, any>, error: { message?: string; [key: string]: any }) => {
+const logSupabaseMutationError = (operation: string, payload: JsonRecord, error: { message?: string } & JsonRecord) => {
   console.error(`[deliveryService] Erro Supabase em ${operation}`, {
     payload,
     error,
@@ -309,16 +324,25 @@ const writeStoredDeliveries = (deliveries: Delivery[]) => {
   window.dispatchEvent(new CustomEvent('deliveriesUpdated'));
 };
 
-const shouldUseLocalFallback = () => DEV_MODE || !hasSupabaseConfig || !supabase;
+const shouldUseLocalFallback = () => DEV_MODE || demoMode;
+
+const requireSupabase = () => {
+  if (!supabase || !hasSupabaseConfig) {
+    throw new Error('Supabase não configurado. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
+  }
+  return supabase;
+};
 
 const hasActiveSupabaseSession = async () => {
   if (shouldUseLocalFallback()) return false;
-  const { data, error } = await supabase!.auth.getSession();
-  return Boolean(!error && data.session);
+  const { data, error } = await requireSupabase().auth.getSession();
+  if (error) throw new Error(`Não foi possível validar a sessão: ${error.message}`);
+  if (!data.session) throw new Error('Sessão expirada. Entre novamente para continuar.');
+  return true;
 };
 
 const getInitialStatus = (payload: SiteLeadPayload): DeliveryStatus => {
-  return 'PRONTO_PARA_GERAR_PDF';
+  return 'DADOS_RECEBIDOS';
 };
 
 export const getProductLabel = (produto: PdfProductKey | PdfProduct | string) => {
@@ -364,16 +388,13 @@ export const deliveryService = {
   async fetchDeliveriesForAdmin(): Promise<Delivery[]> {
     if (!(await hasActiveSupabaseSession())) return localDeliveryStore.listDeliveries();
 
-    const { data, error } = await supabase!
+    const { data, error } = await requireSupabase()
       .from('deliveries')
       .select(DELIVERY_SELECT)
       .order('created_at', { ascending: false })
       .limit(200);
 
-    if (error) {
-      console.warn('[deliveryService] Usando entregas locais apos erro no Supabase', error.message);
-      return localDeliveryStore.listDeliveries();
-    }
+    if (error) throw new Error(`Não foi possível carregar os pedidos no Supabase: ${error.message}`);
     return (data || []).map(mapDeliveryFromSupabase);
   },
 
@@ -382,17 +403,14 @@ export const deliveryService = {
       return localDeliveryStore.listDeliveries().filter((delivery) => delivery.userId === userId);
     }
 
-    const { data, error } = await supabase!
+    const { data, error } = await requireSupabase()
       .from('deliveries')
       .select(DELIVERY_SELECT)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(50);
 
-    if (error) {
-      console.warn('[deliveryService] Usando entregas locais do usuario apos erro no Supabase', error.message);
-      return localDeliveryStore.listDeliveries().filter((delivery) => delivery.userId === userId);
-    }
+    if (error) throw new Error(`Não foi possível carregar sua área no Supabase: ${error.message}`);
     return (data || []).map(mapDeliveryFromSupabase);
   },
 
@@ -424,7 +442,7 @@ export const deliveryService = {
     }
 
     const dbPayload = mapDeliveryToSupabase(delivery);
-    const { data, error } = await supabase!
+    const { data, error } = await requireSupabase()
       .from('deliveries')
       .insert(dbPayload)
       .select(DELIVERY_SELECT)
@@ -432,12 +450,7 @@ export const deliveryService = {
 
     if (error) {
       logSupabaseMutationError('createDelivery', dbPayload, error);
-      const localId = input.localId || input.id || createLocalId();
-      return localDeliveryStore.upsertDelivery({
-        ...delivery,
-        id: localId,
-        localId,
-      });
+      throw new Error(`O pedido não foi salvo no Supabase: ${error.message}`);
     }
 
     return mapDeliveryFromSupabase(data);
@@ -459,7 +472,7 @@ export const deliveryService = {
     }
 
     const dbPayload = mapDeliveryToSupabase(payload);
-    const { data, error } = await supabase!
+    const { data, error } = await requireSupabase()
       .from('deliveries')
       .update(dbPayload)
       .eq('id', id)
@@ -468,9 +481,7 @@ export const deliveryService = {
 
     if (error) {
       logSupabaseMutationError('updateDelivery', dbPayload, error);
-      const existing = localDeliveryStore.listDeliveries().find((delivery) => delivery.id === id);
-      if (!existing) throw new Error('Entrega não encontrada.');
-      return localDeliveryStore.upsertDelivery({ ...existing, ...payload, id });
+      throw new Error(`A atualização não foi salva no Supabase: ${error.message}`);
     }
     return mapDeliveryFromSupabase(data);
   },
@@ -506,18 +517,22 @@ export const deliveryService = {
 
   async updateDeliveryPdf(
     deliveryOrId: Delivery | string,
-    pdf: { linkPdf?: string | null; pdfDataUrl?: string | null; fileName?: string | null; pdfStoragePath?: string | null }
+    pdf: { linkPdf?: string | null; pdfDataUrl?: string | null; fileName?: string | null; pdfStoragePath?: string | null; demo?: boolean }
   ): Promise<Delivery> {
     const id = typeof deliveryOrId === 'string' ? deliveryOrId : deliveryOrId.id;
     const base = typeof deliveryOrId === 'string' ? undefined : deliveryOrId;
     const payload: Partial<Delivery> = {
       ...(base || {}),
-      status: 'PDF_GERADO',
+      status: pdf.demo ? 'PDF_DEMO_GERADO' : 'PDF_GERADO',
       linkPdf: pdf.linkPdf || base?.linkPdf || null,
       pdfDataUrl: pdf.pdfDataUrl ?? base?.pdfDataUrl ?? null,
       fileName: pdf.fileName || base?.fileName || null,
       pdfStoragePath: pdf.pdfStoragePath || base?.pdfStoragePath || null,
       telefoneNormalizado: base?.telefoneNormalizado || normalizeBrazilianPhone(base?.telefone || ''),
+      dadosCliente: {
+        ...(base?.dadosCliente || {}),
+        pdfKind: pdf.demo ? 'demo' : 'real',
+      },
     };
 
     return this.updateDelivery(id, payload);
@@ -525,6 +540,31 @@ export const deliveryService = {
 
   async updateDeliveryStatus(id: string, status: DeliveryStatus): Promise<Delivery> {
     return this.updateDelivery(id, { status });
+  },
+
+  async submitCustomerData(
+    id: string,
+    payload: Pick<Delivery, 'nome' | 'telefone' | 'telefoneNormalizado' | 'email' | 'dataNascimento' | 'observacoesCliente' | 'dadosCliente'>,
+  ): Promise<Delivery> {
+    if (!(await hasActiveSupabaseSession())) {
+      return this.updateDelivery(id, { ...payload, status: 'DADOS_RECEBIDOS' });
+    }
+
+    const { data, error } = await requireSupabase().rpc('submit_customer_delivery_data', {
+      p_delivery_id: id,
+      p_nome: payload.nome,
+      p_telefone: payload.telefone,
+      p_telefone_normalizado: payload.telefoneNormalizado,
+      p_email: payload.email || null,
+      p_data_nascimento: payload.dataNascimento,
+      p_observacoes_cliente: payload.observacoesCliente || '',
+      p_dados_cliente: payload.dadosCliente || {},
+    });
+
+    if (error) throw new Error(`Os dados não foram salvos no Supabase: ${error.message}`);
+    const record = Array.isArray(data) ? data[0] : data;
+    if (!record) throw new Error('O Supabase não retornou o pedido atualizado.');
+    return mapDeliveryFromSupabase(record);
   },
 
   async markDeliveryAsSent(deliveryOrId: Delivery | string, dataEnvio = new Date().toISOString()): Promise<Delivery> {

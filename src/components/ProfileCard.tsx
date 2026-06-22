@@ -178,7 +178,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
         pdfGeneratedAt: result.generatedAt || new Date().toISOString(),
         pdfError: upload.publicUrl
           ? null
-          : `${upload.error || 'PDF gerado localmente, mas sem link público.'} Verifique se o bucket carol-pdfs existe no Supabase Storage e está público.`,
+          : `${upload.error || 'PDF gerado localmente, mas sem acesso remoto.'} Verifique se o bucket privado carol-pdfs existe e se as políticas RLS permitem acesso ao admin.`,
         pdfPublicUrl: upload.publicUrl || null,
         pdfStoragePath: upload.path || null,
       };
@@ -193,7 +193,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 
       onUpdate?.(profile.id, updates);
       toast({
-        title: upload.publicUrl ? 'PDF gerado e publicado' : 'PDF gerado localmente',
+        title: upload.publicUrl ? 'PDF gerado com acesso privado' : 'PDF gerado localmente',
         description: upload.publicUrl
           ? `${productName} de ${profile.name} ficou pronto para compartilhar.`
           : `${updates.pdfError}`,

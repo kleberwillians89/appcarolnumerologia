@@ -10,6 +10,10 @@ const dataUrlToBlob = async (dataUrl: string) => {
   return response.blob();
 };
 
+const isValidPdfDataUrl = (value?: string | null) => Boolean(
+  value?.startsWith('data:application/pdf') && value.length > 1000
+);
+
 const slugify = (value: string) => value
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -110,7 +114,10 @@ export const pdfStorageService = {
       return { success: false, error: error.message, publicUrl: null, path };
     }
 
-    const { data } = supabase.storage.from(PROFILE_BUCKET).getPublicUrl(path);
+    const { data, error: signedUrlError } = await supabase.storage.from(PROFILE_BUCKET).createSignedUrl(path, 60 * 60);
+    if (signedUrlError || !data?.signedUrl) {
+      return { success: false, error: signedUrlError?.message || 'Não foi possível criar o acesso privado ao PDF.', publicUrl: null, path };
+    }
     console.info('[PDF Storage] Upload success', {
       bucket: PROFILE_BUCKET,
       path,
@@ -118,9 +125,9 @@ export const pdfStorageService = {
       pdfBlobSize: fileBlob.size,
       pdfBlobType: fileBlob.type,
       hasSupabaseClient: Boolean(supabase),
-      publicUrl: data.publicUrl,
+      access: 'private-signed-url',
     });
-    return { success: true, path, publicUrl: data.publicUrl };
+    return { success: true, path, publicUrl: data.signedUrl };
   },
 
   async createSignedPdfUrl(path: string, expiresIn = 60 * 60) {
@@ -148,7 +155,7 @@ export const pdfStorageService = {
     }
 
     const dataUrl = delivery.pdfDataUrl || delivery.pdf_data_url;
-    if (dataUrl) return dataUrl;
+    if (isValidPdfDataUrl(dataUrl)) return dataUrl;
 
     const linkPdf = delivery.linkPdf || delivery.link_pdf;
     return linkPdf && !linkPdf.startsWith('local://') ? linkPdf : null;

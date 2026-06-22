@@ -2,6 +2,9 @@ export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
+export const demoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+export const productVideoUrl = import.meta.env.VITE_PRODUCT_VIDEO_URL
+  || (demoMode ? 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' : '');
 
 export const enableGoogleSheetsSync = import.meta.env.VITE_ENABLE_GOOGLE_SHEETS_SYNC === 'true';
 export const googleSheetsWebhookUrl = import.meta.env.VITE_GOOGLE_SHEETS_WEBHOOK_URL || '';

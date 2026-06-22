@@ -1,113 +1,50 @@
-// src/App.tsx
-import { useEffect, useState } from "react";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
-import { ThemeProvider } from "@/components/theme-provider";
-import NotFound from "./pages/NotFound";
-import LoginPage from "./components/LoginPage";
-import { SharedProfileView } from "./components/SharedProfileView";
-import AppLayout from "./components/AppLayout";
-import { CustomerPortal } from "./components/CustomerPortal";
-import { ProductCatalogPage } from "./components/ProductCatalogPage";
-import { AppProvider } from "./contexts/AppContext";
-import { Delivery, deliveryService } from "./services/deliveryService";
-
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { useCallback, useEffect, useState } from 'react';
+import { Navigate, Route, Routes, HashRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '@/components/ui/toaster';
+import { Toaster as Sonner } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { ThemeProvider } from '@/components/theme-provider';
+import AppLayout from './components/AppLayout';
+import LoginPage from './components/LoginPage';
+import { CustomerPortal } from './components/CustomerPortal';
+import { ProductCatalogPage } from './components/ProductCatalogPage';
+import { SharedProfileView } from './components/SharedProfileView';
+import NotFound from './pages/NotFound';
+import { AppProvider } from './contexts/AppContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Delivery, deliveryService } from './services/deliveryService';
 
 const queryClient = new QueryClient();
 
 function LoadingScreen() {
-  return <div>Carregando...</div>;
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#050B1A] px-4 text-center text-[#F8F5EF]">
+      Carregando...
+    </div>
+  );
 }
 
-function RequireAuth({ children }: { children: JSX.Element }) {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-}
-
-function RoleRedirect() {
-  const { user, role, loading } = useAuth();
-  console.log('SESSÃO ATUAL - ROLE:', (user as any)?.role || role);
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (role === 'admin') {
-    return <Navigate to="/entregas" replace />;
-  }
-
-  if (role === 'cliente') {
-    return <Navigate to="/portal" replace />;
-  }
-
-  return <Navigate to="/login" replace />;
-}
-
-function RequireAdmin({ children }: { children: JSX.Element }) {
-  const { user, role, loading } = useAuth();
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-  if (role === 'cliente') {
-    return <Navigate to="/portal" replace />;
-  }
-  if (role !== 'admin') {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-}
-
-function RequireCliente({ children }: { children: JSX.Element }) {
-  const { user, role, loading } = useAuth();
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-  if (role === 'admin') {
-    return <Navigate to="/entregas" replace />;
-  }
-  if (role !== 'cliente') {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-}
-
-function ClientStoreFlow() {
+function useCustomerDeliveries() {
   const { user } = useAuth();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadDeliveries = async () => {
-    if (!user?.id) return;
+  const loadDeliveries = useCallback(async () => {
+    if (!user?.id) {
+      setDeliveries([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      setDeliveries(await deliveryService.fetchDeliveriesForCurrentUser(user.id));
+      const data = await deliveryService.fetchDeliveriesForCurrentUser(user.id);
+      setDeliveries(data);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     void loadDeliveries();
@@ -115,46 +52,121 @@ function ClientStoreFlow() {
     const handleUpdate = () => void loadDeliveries();
     window.addEventListener('deliveriesUpdated', handleUpdate);
     return () => window.removeEventListener('deliveriesUpdated', handleUpdate);
-  }, [user?.id]);
+  }, [loadDeliveries]);
 
-  if (loading) {
-    return <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">Carregando loja...</div>;
-  }
+  return { deliveries, loading, reload: loadDeliveries };
+}
 
-  const activeDelivery = deliveries[0];
+function RoleRedirect() {
+  const { user, role, loading } = useAuth();
 
-  if (!activeDelivery) {
-    return <ProductCatalogPage onOrderCreated={loadDeliveries} />;
-  }
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (role === 'admin') return <Navigate to="/entregas" replace />;
+  if (role === 'cliente') return <CustomerEntryRedirect />;
 
-  if (activeDelivery.status === 'AGUARDANDO_PAGAMENTO') {
-    return (
-      <div className="min-h-screen bg-[#050B1A] px-4 py-10 text-[#F8F5EF]">
-        <div className="mx-auto max-w-2xl rounded-lg border border-[#C9A96E]/35 bg-[#0B1426]/95 p-6 shadow-xl shadow-black/20">
-          <p className="text-sm font-semibold tracking-[0.2em] text-[#C9A96E]">PEDIDO REGISTRADO</p>
-          <h1 className="mt-3 text-2xl font-bold text-white">Seu pedido foi registrado!</h1>
-          <p className="mt-3 text-[#F8F5EF]/75">
-            Aguarde a confirmação do pagamento para liberar seu formulário.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  return <Navigate to="/login" replace />;
+}
 
-  return <CustomerPortal />;
+function CustomerEntryRedirect() {
+  const { deliveries, loading } = useCustomerDeliveries();
+
+  if (loading) return <LoadingScreen />;
+  if (deliveries.length > 0) return <Navigate to="/portal" replace />;
+
+  return <Navigate to="/loja" replace />;
+}
+
+function RequireAdmin({ children }: { children: JSX.Element }) {
+  const { user, role, loading } = useAuth();
+
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (role === 'admin') return children;
+  if (role === 'cliente') return <Navigate to="/loja" replace />;
+
+  return <Navigate to="/login" replace />;
+}
+
+function RequireCliente({ children }: { children: JSX.Element }) {
+  const { user, role, loading } = useAuth();
+
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (role === 'cliente') return children;
+  if (role === 'admin') return <Navigate to="/entregas" replace />;
+
+  return <Navigate to="/login" replace />;
 }
 
 function RedirectIfAuthenticated({ children }: { children: JSX.Element }) {
-  const { user, role, loading } = useAuth();
-  console.log('SESSÃO ATUAL - ROLE:', (user as any)?.role || role);
+  const { user, loading } = useAuth();
 
-  if (loading) {
-    return <LoadingScreen />;
-  }
-  if (user) {
-    return <RoleRedirect />;
-  }
+  if (loading) return <LoadingScreen />;
+  if (user) return <RoleRedirect />;
+
   return children;
+}
+
+function StoreRoute() {
+  return <ProductCatalogPage />;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <RedirectIfAuthenticated>
+            <LoginPage />
+          </RedirectIfAuthenticated>
+        }
+      />
+
+      <Route path="/" element={<RoleRedirect />} />
+
+      <Route
+        path="/entregas"
+        element={
+          <RequireAdmin>
+            <AppProvider>
+              <AppLayout initialTab="deliveries" />
+            </AppProvider>
+          </RequireAdmin>
+        }
+      />
+
+      <Route
+        path="/loja"
+        element={
+          <RequireCliente>
+            <StoreRoute />
+          </RequireCliente>
+        }
+      />
+
+      <Route
+        path="/portal"
+        element={
+          <RequireCliente>
+            <CustomerPortal />
+          </RequireCliente>
+        }
+      />
+
+      <Route path="/shared/:shareId" element={<SharedProfileView />} />
+
+      <Route
+        path="*"
+        element={
+          <RequireAdmin>
+            <NotFound />
+          </RequireAdmin>
+        }
+      />
+    </Routes>
+  );
 }
 
 const App = () => (
@@ -165,70 +177,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <HashRouter>
-            <Routes>
-              {/* Tela de Login (com redirecionamento se já estiver logado) */}
-              <Route
-                path="/login"
-                element={
-                  <RedirectIfAuthenticated>
-                    <LoginPage />
-                  </RedirectIfAuthenticated>
-                }
-              />
-
-              {/* App principal protegido */}
-              <Route
-                path="/"
-                element={
-                  <RequireAuth>
-                    <RoleRedirect />
-                  </RequireAuth>
-                }
-              />
-
-              <Route
-                path="/entregas"
-                element={
-                  <RequireAdmin>
-                    <AppProvider>
-                      <AppLayout initialTab="deliveries" />
-                    </AppProvider>
-                  </RequireAdmin>
-                }
-              />
-
-              <Route
-                path="/loja"
-                element={
-                  <RequireCliente>
-                    <Navigate to="/portal" replace />
-                  </RequireCliente>
-                }
-              />
-
-              <Route
-                path="/portal"
-                element={
-                  <RequireCliente>
-                    <ClientStoreFlow />
-                  </RequireCliente>
-                }
-              />
-
-              {/* Shared Profile View (Public) */}
-              <Route path="/shared/:shareId" element={<SharedProfileView />} />
-
-              {/* Demais rotas protegidas */}
-              <Route
-                path="*"
-                element={
-                  <RequireAuth>
-                    <NotFound />
-                  </RequireAuth>
-                }
-              />
-
-            </Routes>
+            <AppRoutes />
           </HashRouter>
         </AuthProvider>
       </TooltipProvider>
