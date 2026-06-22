@@ -1,5 +1,41 @@
 create extension if not exists pgcrypto;
 
+create table if not exists public.deliveries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid,
+  nome text not null,
+  telefone text,
+  telefone_normalizado text,
+  email text,
+  produto text not null,
+  tipo_produto text,
+  data_nascimento date,
+  status text not null default 'DADOS_RECEBIDOS',
+  origem text not null default 'plataforma',
+  observacoes_cliente text default '',
+  observacoes_carol text default '',
+  link_pdf text,
+  pdf_data_url text,
+  pdf_storage_path text,
+  file_name text,
+  dados_cliente jsonb default '{}'::jsonb,
+  dados_numerologicos jsonb default '{}'::jsonb,
+  data_criacao timestamptz default now(),
+  data_envio timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.pdf_files (
+  id uuid primary key default gen_random_uuid(),
+  delivery_id uuid references public.deliveries(id) on delete cascade,
+  user_id uuid,
+  file_name text,
+  storage_path text,
+  signed_url text,
+  created_at timestamptz default now()
+);
+
 create table if not exists public.profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references auth.users(id) on delete cascade,
@@ -11,19 +47,43 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
+alter table public.profiles
+  add column if not exists user_id uuid,
+  add column if not exists email text,
+  add column if not exists full_name text,
+  add column if not exists name text,
+  add column if not exists role text default 'cliente',
+  add column if not exists created_at timestamptz default now(),
+  add column if not exists updated_at timestamptz default now();
+
+update public.profiles p
+set user_id = p.id
+where p.user_id is null
+  and exists (select 1 from auth.users u where u.id = p.id);
+
+create unique index if not exists profiles_user_id_key on public.profiles(user_id);
+
 alter table public.deliveries
   add column if not exists user_id uuid references auth.users(id) on delete cascade;
 
 alter table public.pdf_files
   add column if not exists user_id uuid references auth.users(id) on delete cascade;
 
+alter table public.deliveries
+  add column if not exists pdf_data_url text,
+  add column if not exists pdf_storage_path text,
+  add column if not exists file_name text,
+  add column if not exists dados_cliente jsonb default '{}'::jsonb,
+  add column if not exists dados_numerologicos jsonb default '{}'::jsonb,
+  add column if not exists updated_at timestamptz default now();
+
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'deliveries_user_id_fkey') then
+  if not exists (select 1 from pg_constraint where conname = 'deliveries_user_id_fkey' and conrelid = 'public.deliveries'::regclass) then
     alter table public.deliveries
       add constraint deliveries_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
   end if;
-  if not exists (select 1 from pg_constraint where conname = 'pdf_files_user_id_fkey') then
+  if not exists (select 1 from pg_constraint where conname = 'pdf_files_user_id_fkey' and conrelid = 'public.pdf_files'::regclass) then
     alter table public.pdf_files
       add constraint pdf_files_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
   end if;
